@@ -73,12 +73,42 @@ class ASRService:
     def transcribe_bytes(self, audio_bytes: bytes) -> str:
         """Транскрибування аудіо з байтів"""
         if self.model is None or not TORCH_AVAILABLE:
+            print("[ASR] Модель недоступна - демо-режим")
             return self._demo_transcribe()
         
         try:
             import io
+            import tempfile
+            import subprocess
+            import os
+            
+            # Спробуємо визначити формат і конвертувати якщо потрібно
             audio_buffer = io.BytesIO(audio_bytes)
-            waveform, sample_rate = torchaudio.load(audio_buffer)
+            
+            # Спершу спробуємо напряму
+            try:
+                waveform, sample_rate = torchaudio.load(audio_buffer)
+            except Exception as load_error:
+                print(f"[ASR] Пряме завантаження не вдалося: {load_error}")
+                # Конвертуємо через ffmpeg
+                with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as f_in:
+                    f_in.write(audio_bytes)
+                    input_path = f_in.name
+                
+                output_path = input_path.replace('.webm', '.wav')
+                try:
+                    subprocess.run([
+                        'ffmpeg', '-y', '-i', input_path,
+                        '-ar', '16000', '-ac', '1', '-f', 'wav', output_path
+                    ], capture_output=True, check=True)
+                    
+                    waveform, sample_rate = torchaudio.load(output_path)
+                finally:
+                    # Очищуємо тимчасові файли
+                    if os.path.exists(input_path):
+                        os.remove(input_path)
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
             
             if sample_rate != 16000:
                 resampler = torchaudio.transforms.Resample(sample_rate, 16000)
@@ -91,6 +121,7 @@ class ASRService:
             input_data = prepare_model_input([waveform.squeeze()], device=self.device)
             output = self.model(input_data)
             transcript = self.decoder(output[0].cpu())
+            print(f"[ASR] Розпізнано: {transcript.strip()}")
             return transcript.strip()
         except Exception as e:
             print(f"[ASR] Помилка: {e}")
