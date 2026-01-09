@@ -430,10 +430,16 @@ const App = () => {
         setIsSpeaking(true);
         
         audioBytes.arrayBuffer().then(arrayBuffer => {
-          audioContextRef.current?.decodeAudioData(arrayBuffer).then(audioBuffer => {
-            const source = audioContextRef.current!.createBufferSource();
+          const audioCtx = audioContextRef.current;
+          if (!audioCtx) {
+            setIsSpeaking(false);
+            resolve();
+            return;
+          }
+          audioCtx.decodeAudioData(arrayBuffer).then(audioBuffer => {
+            const source = audioCtx.createBufferSource();
             source.buffer = audioBuffer;
-            source.connect(audioContextRef.current!.destination);
+            source.connect(audioCtx.destination);
             
             source.onended = () => {
               setIsSpeaking(false);
