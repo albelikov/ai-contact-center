@@ -854,14 +854,13 @@ const App = () => {
 
   // Почати прослуховування
   const startListening = useCallback(() => {
-    console.log('[Voice] startListening, useBackendASR:', isConnected);
+    console.log('[Voice] startListening, isConnected:', isConnected);
     console.log('[Voice] recognitionRef.current:', recognitionRef.current ? 'є' : 'немає');
+    console.log('[Voice] Web Speech API доступний:', 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
     
-    if (isConnected) {
-      console.log('[Voice] Використовую Backend ASR (бекенд)');
-      startBackendRecording();
-    } else if (recognitionRef.current) {
-      console.log('[Voice] Використовую Web Speech API');
+    // ПРІОРИТЕТ: Web Speech API (браузер) -> Backend ASR (тільки якщо браузер не працює)
+    if (recognitionRef.current) {
+      console.log('[Voice] Використовую Web Speech API (браузер)');
       try {
         try {
           recognitionRef.current.abort();
@@ -877,11 +876,20 @@ const App = () => {
         }, 100);
       } catch (e) {
         console.error('[WebSpeech] Помилка початку розпізнавання:', e);
-        setError('❌ Помилка голосового вводу. Спробуйте ще раз.');
+        // Якщо Web Speech не працює, пробуємо бекенд
+        if (isConnected) {
+          console.log('[Voice] Web Speech не працює, перехід на Backend ASR');
+          startBackendRecording();
+        } else {
+          setError('❌ Голосове розпізнавання недоступне.\n\nРекомендації:\n• Використовуйте браузер Chrome\n• Перевірте налаштування мікрофона\n• Або використовуйте режим "Демо"');
+        }
       }
+    } else if (isConnected) {
+      // Web Speech не доступний, пробуємо бекенд
+      console.log('[Voice] Web Speech не доступний, використовую Backend ASR');
+      startBackendRecording();
     } else {
       console.error('[Voice] Немає методу ASR!');
-      console.error('[Voice] Web Speech API не доступний у цьому браузері');
       setError('❌ Голосове розпізнавання недоступне.\n\nРекомендації:\n• Використовуйте браузер Chrome\n• Перевірте налаштування мікрофона\n• Або використовуйте режим "Демо"');
     }
   }, [isConnected, startBackendRecording]);
@@ -1140,29 +1148,37 @@ const App = () => {
                 console.log('isRecording:', isRecording);
                 console.log('callState:', callState);
                 console.log('lastTranscript:', lastTranscript);
+                console.log('isConnected (Backend):', isConnected);
               }}
               className="text-blue-600 hover:text-blue-800 underline"
             >
               Лог в консоль
             </button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
             <div className={`flex items-center gap-1 ${'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? 'text-green-600' : 'text-red-600'}`}>
               <span>{'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? '✓' : '✗'}</span>
               <span>Web Speech API</span>
             </div>
             <div className={`flex items-center gap-1 ${recognitionRef.current ? 'text-green-600' : 'text-red-600'}`}>
               <span>{recognitionRef.current ? '✓' : '✗'}</span>
-              <span>Ініціалізовано</span>
+              <span>Готовий</span>
             </div>
             <div className={`flex items-center gap-1 ${isRecording ? 'text-yellow-600' : 'text-gray-500'}`}>
               <span>{isRecording ? '🎤' : '🔇'}</span>
-              <span>{isRecording ? 'Слухаю...' : 'Не слухає'}</span>
+              <span>{isRecording ? 'Слухаю...' : 'Очікує'}</span>
             </div>
-            <div className="flex items-center gap-1 text-blue-600">
+            <div className={`flex items-center gap-1 ${isConnected ? 'text-blue-600' : 'text-gray-400'}`}>
+              <span>{isConnected ? '🌐' : '🚫'}</span>
+              <span>Backend</span>
+            </div>
+            <div className="flex items-center gap-1 text-gray-600">
               <span>📝</span>
-              <span className="truncate max-w-[150px]">{lastTranscript || '-'}</span>
+              <span className="truncate max-w-[120px]">{lastTranscript || '-'}</span>
             </div>
+          </div>
+          <div className="mt-2 text-xs text-gray-500">
+            💡 Пріоритет: Web Speech API (браузер) → Backend ASR (тільки якщо браузер не працює)
           </div>
         </div>
       </div>
