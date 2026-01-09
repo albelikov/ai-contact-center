@@ -66,6 +66,18 @@ class Settings(BaseModel):
 # Завантаження налаштувань
 settings = Settings()
 
+# Для зворотної сумісності з старими файлами
+APP_NAME = settings.APP_NAME
+VERSION = settings.VERSION
+DEBUG = settings.DEBUG
+HOST = settings.HOST
+PORT = settings.PORT
+DATABASE_URL = settings.DATABASE_URL
+API_USERNAME = settings.API_USERNAME
+API_PASSWORD = settings.API_PASSWORD
+ADMIN_USERNAME = settings.ADMIN_USERNAME
+ADMIN_PASSWORD = settings.ADMIN_PASSWORD
+
 
 def reload_settings():
     """

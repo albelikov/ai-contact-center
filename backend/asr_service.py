@@ -45,13 +45,29 @@ class ASRService:
         try:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             print(f"[ASR] Завантаження Silero моделі на {self.device}...")
+            
+            # Спробуємо з 'uk' для української
+            try:
+                self.model, self.decoder, self.utils = torch.hub.load(
+                    repo_or_dir='snakers4/silero-models',
+                    model='silero_stt',
+                    language='uk',
+                    device=self.device
+                )
+                print(f"[ASR] ✅ Silero модель (українська) завантажено на {self.device}")
+                return
+            except AssertionError as e:
+                print(f"[ASR] ⚠️ Українська мова не підтримується, пробуємо багатомовну...")
+            
+            # Якщо 'uk' не працює, використовуємо багатомовну версію
             self.model, self.decoder, self.utils = torch.hub.load(
                 repo_or_dir='snakers4/silero-models',
                 model='silero_stt',
-                language='uk',
+                language='multilingual',
                 device=self.device
             )
-            print(f"[ASR] ✅ Silero модель успішно завантажено на {self.device}")
+            print(f"[ASR] ✅ Silero модель (багатомовна) завантажено на {self.device}")
+            
         except Exception as e:
             print(f"[ASR] ❌ Помилка завантаження Silero: {e}")
             import traceback
