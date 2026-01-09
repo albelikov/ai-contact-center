@@ -694,24 +694,37 @@ const App = () => {
       };
       
       recognitionRef.current.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        console.log('[Recognition] Error:', event.error);
         setIsRecording(false);
         if (event.error === 'no-speech') {
           setLastTranscript('[Не почуто голос - спробуйте ще]');
           // Перезапускаємо слухання
           setTimeout(() => {
             if (callState !== 'idle' && callState !== 'ended') {
+              console.log('[Recognition] Restarting after no-speech...');
               startListening();
             }
           }, 1000);
         } else if (event.error === 'aborted') {
-          // Користувач скасував - нічого не робимо
-        } else {
+          console.log('[Recognition] Aborted (normal during restart)');
+          // Користувач скасував або рестарт - нічого не робимо
+        } else if (event.error === 'not-allowed') {
+          console.error('[Recognition] Microphone access denied');
           setCallState('idle');
+          alert('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
+        } else {
+          console.log('[Recognition] Other error, keeping state');
+          // Не скидаємо стан - спробуємо знову
+          setTimeout(() => {
+            if (callState !== 'idle' && callState !== 'ended') {
+              startListening();
+            }
+          }, 500);
         }
       };
       
       recognitionRef.current.onend = () => {
+        console.log('[Recognition] Ended');
         setIsRecording(false);
       };
     }
@@ -730,8 +743,8 @@ const App = () => {
     setClassification(null);
     setLastTranscript('');
     
-    // Привітання
-    const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію контактного центру. Чим можу вам допомогти?';
+    // Привітання (скорочене)
+    const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію. Чим можу допомогти?';
     const greetingMsg = {
       id: Date.now(),
       text: greeting,
@@ -742,20 +755,43 @@ const App = () => {
     
     // Озвучуємо привітання, потім слухаємо
     setCallState('responding');
+    console.log('[Voice] Starting greeting TTS...');
     synthesizeSpeech(greeting, () => {
-      // Після привітання починаємо слухати
+      console.log('[Voice] Greeting TTS finished, starting listening...');
+      // Після привітання починаємо слухати з невеликою затримкою
+      setCallState('processing');
       setTimeout(() => {
-        startListening();
-      }, 500);
+        try {
+          console.log('[Voice] Calling startListening...');
+          startListening();
+        } catch (e) {
+          console.error('[Voice] startListening error:', e);
+        }
+      }, 300);
     });
   };
   
   // Почати слухати
   const startListening = () => {
+    console.log('[Voice] startListening called, recognitionRef:', !!recognitionRef.current);
     if (recognitionRef.current) {
-      setIsRecording(true);
-      setCallState('processing');
-      recognitionRef.current.start();
+      try {
+        // Зупиняємо попереднє розпізнавання якщо є
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          // ігноруємо
+        }
+        
+        setTimeout(() => {
+          setIsRecording(true);
+          setCallState('processing');
+          console.log('[Voice] Starting recognition...');
+          recognitionRef.current.start();
+        }, 100);
+      } catch (e) {
+        console.error('[Voice] Error starting recognition:', e);
+      }
     }
   };
   
@@ -913,35 +949,52 @@ const App = () => {
     
     isPlayingRef.current = true;
     const { text, callback, useBackend } = audioQueueRef.current.shift();
+    console.log('[Audio Queue] Processing:', text.substring(0, 30) + '...');
     
-    if (useBackend && isConnected && useFishSpeech) {
-      try {
-        setIsSpeaking(true);
-        const response = await fetch(`${BACKEND_URL}/api/synthesize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: 'default' })
-        });
-        
-        if (response.ok) {
-          const audioBlob = await response.blob();
-          await playAudioBytes(audioBlob);
-        } else {
+    try {
+      if (useBackend && isConnected && useFishSpeech) {
+        try {
+          setIsSpeaking(true);
+          const response = await fetch(`${BACKEND_URL}/api/synthesize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice: 'default' })
+          });
+          
+          if (response.ok) {
+            const audioBlob = await response.blob();
+            await playAudioBytes(audioBlob);
+          } else {
+            console.log('[Audio Queue] Backend TTS failed, using Web Speech');
+            await new Promise(resolve => speakWithWebSpeech(text, resolve));
+          }
+        } catch (error) {
+          console.error('[Audio Queue] TTS error:', error);
           await new Promise(resolve => speakWithWebSpeech(text, resolve));
         }
-      } catch (error) {
-        console.error('TTS error:', error);
+      } else {
+        console.log('[Audio Queue] Using Web Speech API');
         await new Promise(resolve => speakWithWebSpeech(text, resolve));
       }
-    } else {
-      await new Promise(resolve => speakWithWebSpeech(text, resolve));
+    } catch (error) {
+      console.error('[Audio Queue] Unexpected error:', error);
+      setIsSpeaking(false);
     }
     
+    console.log('[Audio Queue] Finished, calling callback:', !!callback);
     isPlayingRef.current = false;
-    if (callback) callback();
+    setIsSpeaking(false);
+    
+    if (callback) {
+      try {
+        callback();
+      } catch (e) {
+        console.error('[Audio Queue] Callback error:', e);
+      }
+    }
     
     // Обробити наступний елемент черги
-    processAudioQueue();
+    setTimeout(() => processAudioQueue(), 50);
   }, [isConnected, useFishSpeech, playAudioBytes, speakWithWebSpeech]);
 
   // Синтез мовлення через Fish Speech API з чергою
