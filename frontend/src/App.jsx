@@ -669,101 +669,125 @@ const App = () => {
     }
   };
 
-  // === Голосовий режим ===
+  // === Голосовий режим з Web Speech API ===
+  const recognitionRef = useRef(null);
   
-  // Почати запис з мікрофона
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+  // Ініціалізація Web Speech API
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'uk-UA';
+      
+      recognitionRef.current.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setLastTranscript(transcript);
+        
+        // Якщо це фінальний результат
+        if (event.results[0].isFinal) {
+          processVoiceText(transcript);
         }
       };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await processVoiceInput(audioBlob);
+      
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        setCallState('idle');
+        if (event.error === 'no-speech') {
+          setLastTranscript('[Не почуто голос]');
+        }
       };
-
-      mediaRecorder.start();
+      
+      recognitionRef.current.onend = () => {
+        setIsRecording(false);
+      };
+    }
+  }, []);
+  
+  // Почати голосовий діалог
+  const startVoiceCall = async () => {
+    if (!recognitionRef.current) {
+      alert('Ваш браузер не підтримує розпізнавання голосу. Використовуйте Chrome.');
+      return;
+    }
+    
+    // Починаємо симуляцію
+    setCallState('active');
+    setChatMessages([]);
+    setClassification(null);
+    setLastTranscript('');
+    
+    // Привітання
+    const greeting = 'Доброго дня! Я ваш голосовий помічник. Опишіть вашу проблему.';
+    const greetingMsg = {
+      id: Date.now(),
+      text: greeting,
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatMessages([greetingMsg]);
+    
+    // Озвучуємо привітання, потім слухаємо
+    await synthesizeSpeech(greeting, () => {
+      // Після привітання починаємо слухати
+      startListening();
+    });
+  };
+  
+  // Почати слухати
+  const startListening = () => {
+    if (recognitionRef.current) {
       setIsRecording(true);
-    } catch (error) {
-      console.error('Microphone error:', error);
-      alert('Не вдалося отримати доступ до мікрофона. Перевірте дозволи браузера.');
+      setCallState('processing');
+      recognitionRef.current.start();
     }
   };
-
-  // Зупинити запис
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+  
+  // Зупинити слухання
+  const stopListening = () => {
+    if (recognitionRef.current && isRecording) {
+      recognitionRef.current.stop();
       setIsRecording(false);
     }
   };
-
-  // Обробка голосового вводу
-  const processVoiceInput = async (audioBlob) => {
+  
+  // Обробка розпізнаного тексту
+  const processVoiceText = async (userText) => {
+    if (!userText.trim()) {
+      setCallState('idle');
+      return;
+    }
+    
+    // Додаємо повідомлення користувача
+    const userMsg = {
+      id: Date.now(),
+      text: userText,
+      isUser: true,
+      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatMessages(prev => [...prev, userMsg]);
+    
     setCallState('processing');
     
     try {
-      // 1. Відправити аудіо на транскрибування (Silero ASR)
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-      
-      const transcribeRes = await fetch(`${BACKEND_URL}/api/transcribe`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      let userText = '';
-      
-      if (transcribeRes.ok) {
-        const transcribeData = await transcribeRes.json();
-        userText = transcribeData.transcript || '';
-        setLastTranscript(userText);
-      } else {
-        // Якщо ASR не працює, показуємо помилку
-        setLastTranscript('[ASR недоступний]');
-        setCallState('idle');
-        return;
-      }
-      
-      if (!userText.trim()) {
-        setLastTranscript('[Не вдалося розпізнати]');
-        setCallState('idle');
-        return;
-      }
-
-      // Додаємо повідомлення користувача
-      const userMsg = {
-        id: Date.now(),
-        text: userText,
-        isUser: true,
-        timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatMessages(prev => [...prev, userMsg]);
-
-      // 2. Класифікація
+      // Класифікація
       const classifyRes = await fetch(`${BACKEND_URL}/api/classify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: userText })
       });
-
+      
       if (classifyRes.ok) {
         const classifyData = await classifyRes.json();
         const result = classifyData.classification;
         setClassification(result);
-
-        // 3. Генеруємо відповідь
-        const responseText = result.response || 'Дякую за ваше звернення.';
         
+        // Відповідь
+        const responseText = result.response || 'Дякую за ваше звернення.';
         const agentMsg = {
           id: Date.now() + 1,
           text: responseText,
@@ -771,15 +795,28 @@ const App = () => {
           timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
         };
         setChatMessages(prev => [...prev, agentMsg]);
-
-        // 4. Озвучуємо відповідь (TTS)
+        
+        // Озвучуємо відповідь
         setCallState('responding');
-        await synthesizeSpeech(responseText, () => {
-          setCallState('idle');
+        await synthesizeSpeech(responseText, async () => {
+          // Запитуємо чи потрібна ще допомога
+          const followUp = 'Чи можу я ще чимось допомогти?';
+          const followUpMsg = {
+            id: Date.now() + 2,
+            text: followUp,
+            isUser: false,
+            timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+          };
+          setChatMessages(prev => [...prev, followUpMsg]);
+          
+          await synthesizeSpeech(followUp, () => {
+            // Знову слухаємо
+            startListening();
+          });
         });
       }
     } catch (error) {
-      console.error('Voice processing error:', error);
+      console.error('Processing error:', error);
       setCallState('idle');
     }
   };
@@ -1315,42 +1352,38 @@ const App = () => {
                       <>
                         <button
                           onClick={simulateIncomingCall}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg"
+                          className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-gray-600 hover:to-gray-700 transition-all shadow-lg"
                         >
                           <PhoneCall className="w-5 h-5" />
-                          Симуляція
+                          Демо
                         </button>
-                        {isConnected && (
-                          <button
-                            onClick={() => {
-                              if (isRecording) {
-                                stopRecording();
-                              } else {
-                                startRecording();
-                              }
-                            }}
-                            className={`flex-1 py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg ${
-                              isRecording 
-                                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white animate-pulse' 
-                                : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700'
-                            }`}
-                          >
-                            <Mic className="w-5 h-5" />
-                            {isRecording ? 'Зупинити запис...' : 'Говоріть (тест)'}
-                          </button>
-                        )}
+                        <button
+                          onClick={startVoiceCall}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg"
+                        >
+                          <Mic className="w-5 h-5" />
+                          Почати розмову
+                        </button>
                       </>
                     ) : (
-                      <button
-                        onClick={() => {
-                          if (isRecording) stopRecording();
-                          endCall();
-                        }}
-                        className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-red-600 hover:to-red-700 transition-all shadow-lg"
-                      >
-                        <PhoneOff className="w-5 h-5" />
-                        Завершити
-                      </button>
+                      <>
+                        {isRecording && (
+                          <div className="flex-1 bg-red-500 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 animate-pulse">
+                            <Mic className="w-5 h-5" />
+                            Слухаю... Говоріть!
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (isRecording) stopListening();
+                            endCall();
+                          }}
+                          className={`${isRecording ? 'flex-none px-6' : 'flex-1'} bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-red-600 hover:to-red-700 transition-all shadow-lg`}
+                        >
+                          <PhoneOff className="w-5 h-5" />
+                          Завершити
+                        </button>
+                      </>
                     )}
                   </div>
                   
