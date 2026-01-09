@@ -1,6 +1,7 @@
 """
 Класифікатор заявок мешканців
 Універсальний класифікатор контактного центру
+Використовує довідник з references.py
 """
 from typing import Optional, Dict, List
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ import re
 @dataclass
 class ClassificationResult:
     """Результат класифікації запиту"""
-    id: int
+    id: str  # Змінено на str для UUID
     problem: str
     type: str
     subtype: str
@@ -22,8 +23,8 @@ class ClassificationResult:
     needs_operator: bool = False
 
 
-# Офіційний класифікатор заявок м. Запоріжжя
-CLASSIFIER_DATA: List[Dict] = [
+# Резервні дані (використовуються якщо довідник порожній)
+FALLBACK_CLASSIFIER_DATA: List[Dict] = [
     {
         "id": 1,
         "problem": "Благоустрій прибудинкової території",
@@ -175,7 +176,25 @@ class QueryClassifier:
     """Класифікатор запитів громадян"""
     
     def __init__(self):
-        self.data = CLASSIFIER_DATA
+        self._load_data()
+    
+    def _load_data(self):
+        """Завантаження даних з довідника"""
+        try:
+            from references import storage
+            self.data = storage.get_classifiers(active_only=True)
+            if not self.data:
+                print("[Classifier] Довідник порожній, використовую резервні дані")
+                self.data = FALLBACK_CLASSIFIER_DATA
+            else:
+                print(f"[Classifier] Завантажено {len(self.data)} категорій з довідника")
+        except Exception as e:
+            print(f"[Classifier] Помилка завантаження довідника: {e}")
+            self.data = FALLBACK_CLASSIFIER_DATA
+    
+    def reload(self):
+        """Перезавантажити дані з довідника"""
+        self._load_data()
     
     def _calculate_score(self, query: str, item: Dict) -> float:
         """Розрахунок релевантності запиту до категорії"""
@@ -213,14 +232,16 @@ class QueryClassifier:
                 best_match = item
         
         if best_match and highest_score > 0.2:
+            # Підтримка обох форматів: executor та executor_name
+            executor = best_match.get("executor_name") or best_match.get("executor", "Не визначено")
             return ClassificationResult(
-                id=best_match["id"],
+                id=str(best_match["id"]),
                 problem=best_match["problem"],
                 type=best_match["type"],
                 subtype=best_match["subtype"],
                 location=best_match.get("location"),
                 response=best_match["response"],
-                executor=best_match["executor"],
+                executor=executor,
                 urgency=best_match["urgency"],
                 response_time=best_match["response_time"],
                 confidence=min(0.95, 0.5 + highest_score),

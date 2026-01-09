@@ -13,9 +13,15 @@ from datetime import datetime
 import uuid
 
 from config import APP_NAME, VERSION, HOST, PORT
-from classifier import classify_query, ClassificationResult
+from classifier import classify_query, ClassificationResult, classifier
 from asr_service import transcribe_audio, transcribe_audio_bytes
 from tts_service import synthesize_speech, synthesize_to_file
+from references import (
+    storage, 
+    ExecutorBase, Executor,
+    ClassifierItemBase, ClassifierItem,
+    ConversationAlgorithmBase, ConversationAlgorithm
+)
 
 # Ініціалізація FastAPI
 app = FastAPI(
@@ -191,6 +197,141 @@ async def get_statistics():
             "ai_resolved_percent": round(resolved / total * 100, 1) if total > 0 else 0,
             "avg_response_time": 3.5  # секунди
         }
+    }
+
+
+# === API Довідників (References) ===
+
+# --- Виконавці (Executors) ---
+
+@app.get("/api/references/executors")
+async def get_executors(active_only: bool = False):
+    """Отримати список виконавців"""
+    executors = storage.get_executors(active_only)
+    return {"success": True, "count": len(executors), "data": executors}
+
+@app.get("/api/references/executors/{executor_id}")
+async def get_executor(executor_id: str):
+    """Отримати виконавця за ID"""
+    executor = storage.get_executor(executor_id)
+    if not executor:
+        raise HTTPException(status_code=404, detail="Виконавця не знайдено")
+    return {"success": True, "data": executor}
+
+@app.post("/api/references/executors")
+async def create_executor(data: ExecutorBase):
+    """Створити нового виконавця"""
+    executor = storage.create_executor(data)
+    return {"success": True, "message": "Виконавця створено", "data": executor}
+
+@app.put("/api/references/executors/{executor_id}")
+async def update_executor(executor_id: str, data: ExecutorBase):
+    """Оновити виконавця"""
+    executor = storage.update_executor(executor_id, data)
+    if not executor:
+        raise HTTPException(status_code=404, detail="Виконавця не знайдено")
+    return {"success": True, "message": "Виконавця оновлено", "data": executor}
+
+@app.delete("/api/references/executors/{executor_id}")
+async def delete_executor(executor_id: str):
+    """Видалити виконавця"""
+    if not storage.delete_executor(executor_id):
+        raise HTTPException(status_code=404, detail="Виконавця не знайдено")
+    return {"success": True, "message": "Виконавця видалено"}
+
+
+# --- Класифікатор (Classifiers) ---
+
+@app.get("/api/references/classifiers")
+async def get_classifiers(active_only: bool = False):
+    """Отримати список категорій класифікатора"""
+    classifiers = storage.get_classifiers(active_only)
+    return {"success": True, "count": len(classifiers), "data": classifiers}
+
+@app.get("/api/references/classifiers/{classifier_id}")
+async def get_classifier(classifier_id: str):
+    """Отримати категорію за ID"""
+    classifier = storage.get_classifier(classifier_id)
+    if not classifier:
+        raise HTTPException(status_code=404, detail="Категорію не знайдено")
+    return {"success": True, "data": classifier}
+
+@app.post("/api/references/classifiers")
+async def create_classifier(data: ClassifierItemBase):
+    """Створити нову категорію класифікатора"""
+    classifier = storage.create_classifier(data)
+    return {"success": True, "message": "Категорію створено", "data": classifier}
+
+@app.put("/api/references/classifiers/{classifier_id}")
+async def update_classifier(classifier_id: str, data: ClassifierItemBase):
+    """Оновити категорію"""
+    classifier = storage.update_classifier(classifier_id, data)
+    if not classifier:
+        raise HTTPException(status_code=404, detail="Категорію не знайдено")
+    return {"success": True, "message": "Категорію оновлено", "data": classifier}
+
+@app.delete("/api/references/classifiers/{classifier_id}")
+async def delete_classifier(classifier_id: str):
+    """Видалити категорію"""
+    if not storage.delete_classifier(classifier_id):
+        raise HTTPException(status_code=404, detail="Категорію не знайдено")
+    return {"success": True, "message": "Категорію видалено"}
+
+
+# --- Алгоритми розмови (Conversation Algorithms) ---
+
+@app.get("/api/references/algorithms")
+async def get_algorithms(active_only: bool = False):
+    """Отримати список алгоритмів розмови"""
+    algorithms = storage.get_algorithms(active_only)
+    return {"success": True, "count": len(algorithms), "data": algorithms}
+
+@app.get("/api/references/algorithms/default")
+async def get_default_algorithm():
+    """Отримати алгоритм за замовчуванням"""
+    algorithm = storage.get_default_algorithm()
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="Алгоритм за замовчуванням не знайдено")
+    return {"success": True, "data": algorithm}
+
+@app.get("/api/references/algorithms/{algorithm_id}")
+async def get_algorithm(algorithm_id: str):
+    """Отримати алгоритм за ID"""
+    algorithm = storage.get_algorithm(algorithm_id)
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="Алгоритм не знайдено")
+    return {"success": True, "data": algorithm}
+
+@app.post("/api/references/algorithms")
+async def create_algorithm(data: ConversationAlgorithmBase):
+    """Створити новий алгоритм розмови"""
+    algorithm = storage.create_algorithm(data)
+    return {"success": True, "message": "Алгоритм створено", "data": algorithm}
+
+@app.put("/api/references/algorithms/{algorithm_id}")
+async def update_algorithm(algorithm_id: str, data: ConversationAlgorithmBase):
+    """Оновити алгоритм"""
+    algorithm = storage.update_algorithm(algorithm_id, data)
+    if not algorithm:
+        raise HTTPException(status_code=404, detail="Алгоритм не знайдено")
+    return {"success": True, "message": "Алгоритм оновлено", "data": algorithm}
+
+@app.delete("/api/references/algorithms/{algorithm_id}")
+async def delete_algorithm(algorithm_id: str):
+    """Видалити алгоритм"""
+    if not storage.delete_algorithm(algorithm_id):
+        raise HTTPException(status_code=404, detail="Алгоритм не знайдено")
+    return {"success": True, "message": "Алгоритм видалено"}
+
+
+@app.post("/api/references/reload")
+async def reload_references():
+    """Перезавантажити дані класифікатора з довідника"""
+    classifier.reload()
+    return {
+        "success": True, 
+        "message": "Довідники перезавантажено",
+        "classifiers_count": len(classifier.data)
     }
 
 
