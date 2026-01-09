@@ -669,10 +669,14 @@ const App = () => {
     }
   };
 
-  // === Голосовий режим з Web Speech API ===
+  // === Голосовий режим з Backend Silero ASR або Web Speech API ===
   const recognitionRef = useRef(null);
+  // mediaRecorderRef та audioChunksRef вже оголошені вище
+  const mediaStreamRef = useRef(null);
+  const recordingTimeoutRef = useRef(null);
+  const useBackendASR = isConnected; // Використовуємо бекенд якщо підключено
   
-  // Ініціалізація Web Speech API
+  // Ініціалізація Web Speech API (fallback)
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -694,41 +698,135 @@ const App = () => {
       };
       
       recognitionRef.current.onerror = (event) => {
-        console.log('[Recognition] Error:', event.error);
+        console.log('[WebSpeech] Error:', event.error);
         setIsRecording(false);
+        // При помилці network - переключаємося на backend ASR
+        if (event.error === 'network' && isConnected) {
+          console.log('[WebSpeech] Network error, switching to backend ASR');
+          startBackendRecording();
+          return;
+        }
         if (event.error === 'no-speech') {
           setLastTranscript('[Не почуто голос - спробуйте ще]');
-          // Перезапускаємо слухання
           setTimeout(() => {
             if (callState !== 'idle' && callState !== 'ended') {
-              console.log('[Recognition] Restarting after no-speech...');
               startListening();
             }
           }, 1000);
         } else if (event.error === 'aborted') {
-          console.log('[Recognition] Aborted (normal during restart)');
-          // Користувач скасував або рестарт - нічого не робимо
+          // Нормально при рестарті
         } else if (event.error === 'not-allowed') {
-          console.error('[Recognition] Microphone access denied');
           setCallState('idle');
           alert('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
-        } else {
-          console.log('[Recognition] Other error, keeping state');
-          // Не скидаємо стан - спробуємо знову
-          setTimeout(() => {
-            if (callState !== 'idle' && callState !== 'ended') {
-              startListening();
-            }
-          }, 500);
         }
       };
       
       recognitionRef.current.onend = () => {
-        console.log('[Recognition] Ended');
+        console.log('[WebSpeech] Ended');
         setIsRecording(false);
       };
     }
-  }, [callState]);
+  }, [callState, isConnected]);
+  
+  // Backend ASR через MediaRecorder
+  const startBackendRecording = async () => {
+    console.log('[BackendASR] Starting recording...');
+    try {
+      // Отримуємо доступ до мікрофона
+      if (!mediaStreamRef.current) {
+        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true
+          } 
+        });
+      }
+      
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType });
+      
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorderRef.current.onstop = async () => {
+        console.log('[BackendASR] Recording stopped, sending to backend...');
+        setLastTranscript('[Обробка голосу...]');
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        try {
+          const formData = new FormData();
+          formData.append('file', audioBlob, 'recording.webm');
+          
+          const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('[BackendASR] Transcription result:', data);
+            if (data.text && data.text.trim()) {
+              setLastTranscript(data.text);
+              processVoiceText(data.text);
+            } else {
+              setLastTranscript('[Не вдалось розпізнати]');
+              // Продовжуємо слухати
+              setTimeout(() => {
+                if (callState !== 'idle' && callState !== 'ended') {
+                  startListening();
+                }
+              }, 1000);
+            }
+          } else {
+            console.error('[BackendASR] Transcription failed:', response.status);
+            setLastTranscript('[Помилка розпізнавання]');
+          }
+        } catch (error) {
+          console.error('[BackendASR] Error:', error);
+          setLastTranscript('[Помилка з\'єднання]');
+        }
+        
+        setIsRecording(false);
+      };
+      
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setCallState('processing');
+      setLastTranscript('[Говоріть...]');
+      
+      // Автоматична зупинка через 10 секунд
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          console.log('[BackendASR] Auto-stopping after 10s');
+          mediaRecorderRef.current.stop();
+        }
+      }, 10000);
+      
+    } catch (error) {
+      console.error('[BackendASR] Error starting recording:', error);
+      setIsRecording(false);
+      if (error.name === 'NotAllowedError') {
+        alert('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
+      }
+    }
+  };
+  
+  const stopBackendRecording = () => {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('[BackendASR] Stopping recording...');
+      mediaRecorderRef.current.stop();
+    }
+  };
   
   // Почати голосовий діалог
   const startVoiceCall = async () => {
@@ -771,12 +869,16 @@ const App = () => {
     });
   };
   
-  // Почати слухати
+  // Почати слухати (використовує Backend ASR якщо підключено, інакше Web Speech API)
   const startListening = () => {
-    console.log('[Voice] startListening called, recognitionRef:', !!recognitionRef.current);
-    if (recognitionRef.current) {
+    console.log('[Voice] startListening called, useBackendASR:', useBackendASR);
+    
+    if (useBackendASR) {
+      // Використовуємо бекенд Silero ASR
+      startBackendRecording();
+    } else if (recognitionRef.current) {
+      // Fallback на Web Speech API
       try {
-        // Зупиняємо попереднє розпізнавання якщо є
         try {
           recognitionRef.current.abort();
         } catch (e) {
@@ -786,18 +888,22 @@ const App = () => {
         setTimeout(() => {
           setIsRecording(true);
           setCallState('processing');
-          console.log('[Voice] Starting recognition...');
+          console.log('[WebSpeech] Starting recognition...');
           recognitionRef.current.start();
         }, 100);
       } catch (e) {
-        console.error('[Voice] Error starting recognition:', e);
+        console.error('[WebSpeech] Error starting recognition:', e);
       }
+    } else {
+      console.error('[Voice] No ASR method available');
     }
   };
   
   // Зупинити слухання
   const stopListening = () => {
-    if (recognitionRef.current && isRecording) {
+    if (useBackendASR) {
+      stopBackendRecording();
+    } else if (recognitionRef.current && isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
     }
