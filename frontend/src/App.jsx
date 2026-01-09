@@ -222,6 +222,8 @@ const App = () => {
   const chatEndRef = useRef(null);
   const wsRef = useRef(null);
   const audioContextRef = useRef(null);
+  const audioQueueRef = useRef([]);
+  const isPlayingRef = useRef(false);
 
   // Ініціалізація AudioContext для відтворення Fish Speech
   useEffect(() => {
@@ -259,28 +261,35 @@ const App = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Відтворення WAV аудіо з байтів (Fish Speech)
-  const playAudioBytes = useCallback(async (audioBytes) => {
-    if (!audioContextRef.current || !isSpeakerOn) return;
-    
-    try {
-      setIsSpeaking(true);
-      const arrayBuffer = audioBytes instanceof ArrayBuffer ? audioBytes : await audioBytes.arrayBuffer();
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+  // Відтворення WAV аудіо з байтів (Fish Speech) з чергою
+  const playAudioBytes = useCallback((audioBytes) => {
+    return new Promise(async (resolve) => {
+      if (!audioContextRef.current || !isSpeakerOn) {
+        resolve();
+        return;
+      }
       
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContextRef.current.destination);
-      
-      source.onended = () => {
+      try {
+        setIsSpeaking(true);
+        const arrayBuffer = audioBytes instanceof ArrayBuffer ? audioBytes : await audioBytes.arrayBuffer();
+        const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+        
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContextRef.current.destination);
+        
+        source.onended = () => {
+          setIsSpeaking(false);
+          resolve();
+        };
+        
+        source.start();
+      } catch (error) {
+        console.error('Error playing audio:', error);
         setIsSpeaking(false);
-      };
-      
-      source.start();
-    } catch (error) {
-      console.error('Error playing audio:', error);
-      setIsSpeaking(false);
-    }
+        resolve();
+      }
+    });
   }, [isSpeakerOn]);
 
   // Fallback: Web Speech API TTS
@@ -321,34 +330,48 @@ const App = () => {
     window.speechSynthesis.speak(utterance);
   }, [isSpeakerOn]);
 
-  // Синтез мовлення через Fish Speech API
-  const synthesizeSpeech = useCallback(async (text, callback) => {
-    if (!isConnected || !useFishSpeech) {
-      speakWithWebSpeech(text, callback);
-      return;
+  // Обробник черги аудіо
+  const processAudioQueue = useCallback(async () => {
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
+    
+    isPlayingRef.current = true;
+    const { text, callback, useBackend } = audioQueueRef.current.shift();
+    
+    if (useBackend && isConnected && useFishSpeech) {
+      try {
+        setIsSpeaking(true);
+        const response = await fetch(`${BACKEND_URL}/api/synthesize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: 'default' })
+        });
+        
+        if (response.ok) {
+          const audioBlob = await response.blob();
+          await playAudioBytes(audioBlob);
+        } else {
+          await new Promise(resolve => speakWithWebSpeech(text, resolve));
+        }
+      } catch (error) {
+        console.error('TTS error:', error);
+        await new Promise(resolve => speakWithWebSpeech(text, resolve));
+      }
+    } else {
+      await new Promise(resolve => speakWithWebSpeech(text, resolve));
     }
     
-    try {
-      setIsSpeaking(true);
-      const response = await fetch(`${BACKEND_URL}/api/synthesize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice: 'default' })
-      });
-      
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        await playAudioBytes(audioBlob);
-        if (callback) callback();
-      } else {
-        // Fallback до Web Speech API
-        speakWithWebSpeech(text, callback);
-      }
-    } catch (error) {
-      console.error('Fish Speech error:', error);
-      speakWithWebSpeech(text, callback);
-    }
+    isPlayingRef.current = false;
+    if (callback) callback();
+    
+    // Обробити наступний елемент черги
+    processAudioQueue();
   }, [isConnected, useFishSpeech, playAudioBytes, speakWithWebSpeech]);
+
+  // Синтез мовлення через Fish Speech API з чергою
+  const synthesizeSpeech = useCallback(async (text, callback) => {
+    audioQueueRef.current.push({ text, callback, useBackend: true });
+    processAudioQueue();
+  }, [processAudioQueue]);
 
   // Функція класифікації запиту (локальна)
   const classifyQueryLocal = (query) => {
