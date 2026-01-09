@@ -570,13 +570,20 @@ const App = () => {
       recognitionRef.current.lang = 'uk-UA';
       
       recognitionRef.current.onresult = (event) => {
-        const result = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join('');
-        setLastTranscript(result);
+        // Обробляємо тільки останній результат
+        const resultIndex = event.resultIndex;
+        const result = event.results[resultIndex];
+        const transcript = result[0].transcript;
         
-        if (event.results[0].isFinal) {
-          processVoiceText(result);
+        console.log('[WebSpeech] Результат:', transcript, 'isFinal:', result.isFinal);
+        
+        setLastTranscript(transcript);
+        
+        if (result.isFinal) {
+          console.log('[WebSpeech] Фінальний результат, обробляю...');
+          processVoiceText(transcript);
+        } else {
+          console.log('[WebSpeech] Проміжний результат:', transcript);
         }
       };
       
@@ -1105,18 +1112,60 @@ const App = () => {
       {/* Повідомлення про помилку */}
       {error && (
         <div className="max-w-7xl mx-auto px-4 py-2">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-700">{error}</span>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+            <div className="flex-1">
+              <span className="text-red-700 whitespace-pre-line">{error}</span>
+            </div>
             <button 
               onClick={() => setError(null)}
-              className="ml-auto text-red-500 hover:text-red-700"
+              className="text-red-500 hover:text-red-700"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
       )}
+
+      {/* Панель діагностики мікрофона */}
+      <div className="max-w-7xl mx-auto px-4 py-2">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-semibold text-blue-800">🔧 Діагностика:</span>
+            <button 
+              onClick={() => {
+                console.log('=== ДІАГНОСТИКА ===');
+                console.log('SpeechRecognition:', 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? '✓' : '✗');
+                console.log('recognitionRef:', recognitionRef.current ? '✓' : '✗');
+                console.log('isRecording:', isRecording);
+                console.log('callState:', callState);
+                console.log('lastTranscript:', lastTranscript);
+              }}
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Лог в консоль
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className={`flex items-center gap-1 ${'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? 'text-green-600' : 'text-red-600'}`}>
+              <span>{'webkitSpeechRecognition' in window || 'SpeechRecognition' in window ? '✓' : '✗'}</span>
+              <span>Web Speech API</span>
+            </div>
+            <div className={`flex items-center gap-1 ${recognitionRef.current ? 'text-green-600' : 'text-red-600'}`}>
+              <span>{recognitionRef.current ? '✓' : '✗'}</span>
+              <span>Ініціалізовано</span>
+            </div>
+            <div className={`flex items-center gap-1 ${isRecording ? 'text-yellow-600' : 'text-gray-500'}`}>
+              <span>{isRecording ? '🎤' : '🔇'}</span>
+              <span>{isRecording ? 'Слухаю...' : 'Не слухає'}</span>
+            </div>
+            <div className="flex items-center gap-1 text-blue-600">
+              <span>📝</span>
+              <span className="truncate max-w-[150px]">{lastTranscript || '-'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Навігація */}
