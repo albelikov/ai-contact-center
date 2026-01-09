@@ -562,6 +562,7 @@ const App = () => {
   // Ініціалізація Web Speech API
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      console.log('[WebSpeech] Підтримується браузером, ініціалізую...');
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
@@ -598,9 +599,17 @@ const App = () => {
           }, 1000);
         } else if (event.error === 'aborted') {
           // Нормально при рестарті
+          console.log('[WebSpeech] Розпізнавання перервано, очікування нового запиту...');
         } else if (event.error === 'not-allowed') {
           setCallState('idle');
-          setError('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
+          setError('❌ Доступ до мікрофона заборонено!\n\nЩоб увімкнути:\n1. Натисніть на іконку 🔒 в адресному рядку\n2. Дозвольте "Мікрофон"\n3. Оновіть сторінку');
+          console.error('[WebSpeech] Мікрофон заблокований');
+        } else if (event.error === 'not-found') {
+          setCallState('idle');
+          setError('❌ Мікрофон не знайдено!\n\nПеревірте:\n1. Підключено мікрофон\n2. Дозволи в браузері\n3. Системні налаштування');
+          console.error('[WebSpeech] Мікрофон не знайдено');
+        } else {
+          console.log(`[WebSpeech] Інша помилка: ${event.error}`);
         }
       };
       
@@ -608,6 +617,9 @@ const App = () => {
         console.log('[WebSpeech] Закінчено');
         setIsRecording(false);
       };
+    } else {
+      console.warn('[WebSpeech] НЕ підтримується цим браузером!');
+      console.warn('[WebSpeech] Використовуйте Chrome для голосового вводу');
     }
   }, [callState, isConnected]);
 
@@ -836,10 +848,13 @@ const App = () => {
   // Почати прослуховування
   const startListening = useCallback(() => {
     console.log('[Voice] startListening, useBackendASR:', isConnected);
+    console.log('[Voice] recognitionRef.current:', recognitionRef.current ? 'є' : 'немає');
     
     if (isConnected) {
+      console.log('[Voice] Використовую Backend ASR (бекенд)');
       startBackendRecording();
     } else if (recognitionRef.current) {
+      console.log('[Voice] Використовую Web Speech API');
       try {
         try {
           recognitionRef.current.abort();
@@ -850,15 +865,17 @@ const App = () => {
         setTimeout(() => {
           setIsRecording(true);
           setCallState('processing');
-          console.log('[WebSpeech] Початок розпізнавання...');
+          console.log('[WebSpeech] Запит дозволу на мікрофон...');
           recognitionRef.current?.start();
         }, 100);
       } catch (e) {
         console.error('[WebSpeech] Помилка початку розпізнавання:', e);
+        setError('❌ Помилка голосового вводу. Спробуйте ще раз.');
       }
     } else {
-      console.error('[Voice] Немає методу ASR');
-      setError('Розпізнавання голосу недоступне');
+      console.error('[Voice] Немає методу ASR!');
+      console.error('[Voice] Web Speech API не доступний у цьому браузері');
+      setError('❌ Голосове розпізнавання недоступне.\n\nРекомендації:\n• Використовуйте браузер Chrome\n• Перевірте налаштування мікрофона\n• Або використовуйте режим "Демо"');
     }
   }, [isConnected, startBackendRecording]);
 
@@ -1188,14 +1205,38 @@ const App = () => {
                   {/* Візуалізація аудіо */}
                   <div className="mt-6 flex items-center justify-center gap-8">
                     <div className="text-center">
-                      <p className="text-xs text-gray-400 mb-2">Громадянин говорить</p>
-                      <AudioVisualizer isActive={callState === 'processing' || (isSpeaking && callState !== 'responding')} type="listening" />
+                      <p className="text-xs text-gray-400 mb-2">
+                        {isRecording ? '🎤 Слухаю вас...' : 'Громадянин говорить'}
+                      </p>
+                      <AudioVisualizer 
+                        isActive={isRecording || (callState === 'processing' && !isSpeaking)} 
+                        type="listening" 
+                      />
                     </div>
                     <ArrowRightLeft className="w-6 h-6 text-gray-500" />
                     <div className="text-center">
-                      <p className="text-xs text-gray-400 mb-2">ШІ відповідає</p>
-                      <AudioVisualizer isActive={isSpeaking && callState === 'responding'} type="speaking" />
+                      <p className="text-xs text-gray-400 mb-2">
+                        {isSpeaking ? '🔊 ШІ відповідає...' : 'ШІ відповідає'}
+                      </p>
+                      <AudioVisualizer 
+                        isActive={isSpeaking && callState === 'responding'} 
+                        type="speaking" 
+                      />
                     </div>
+                  </div>
+                  
+                  {/* Індикатор режиму */}
+                  <div className="mt-4 text-center">
+                    {callState === 'processing' && !isRecording && (
+                      <p className="text-yellow-400 text-sm animate-pulse">
+                        ⏳ Обробка запиту...
+                      </p>
+                    )}
+                    {callState === 'active' && !isRecording && !isSpeaking && (
+                      <p className="text-green-400 text-sm">
+                        ✓ Готовий до прийому голосу
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1205,12 +1246,22 @@ const App = () => {
                     {chatMessages.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-gray-400">
                         <MessageSquare className="w-12 h-12 mb-3" />
-                        <p>Натисніть кнопку для симуляції дзвінка</p>
+                        <p className="text-center">
+                          Виберіть режим:<br/>
+                          <span className="text-blue-600">"Демо" — тестування без мікрофона</span><br/>
+                          <span className="text-green-600">"Почати розмову" — з мікрофоном</span>
+                        </p>
                         <p className="text-sm mt-2">
                           {isConnected 
-                            ? 'Голос Fish Speech активний' 
-                            : 'Використовується голос браузера'}
+                            ? '🌐 Підключено до Fish Speech' 
+                            : '🔇 Без підключення — голос браузера'}
                         </p>
+                        {!recognitionRef.current && (
+                          <p className="text-red-500 text-sm mt-2">
+                            ⚠️ Голосове розпізнавання недоступне<br/>
+                            Використовуйте Chrome для повної функціональності
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <>
