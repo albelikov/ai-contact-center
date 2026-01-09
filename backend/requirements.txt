@@ -13,8 +13,11 @@ silero==0.4.0
 torch>=2.0.0
 torchaudio>=2.0.0
 
-# TTS - Fish Speech
-# fish-speech (install from git: pip install git+https://github.com/fishaudio/fish-speech.git)
+# TTS - Edge TTS (Microsoft, безкоштовний, без GPU)
+edge-tts>=6.1.0
+
+# TTS - Fish Speech (опціонально, потребує GPU)
+# pip install git+https://github.com/fishaudio/fish-speech.git
 
 # NLU / Classifier
 transformers>=4.35.0

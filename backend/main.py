@@ -139,20 +139,27 @@ async def transcribe_audio_endpoint(audio: UploadFile = File(...)):
 @app.post("/api/synthesize")
 async def synthesize_text(request: TTSRequest):
     """
-    Синтез мовлення через Fish Speech TTS
+    Синтез мовлення через Edge TTS або Fish Speech
     """
     try:
         audio_bytes, sample_rate = synthesize_speech(request.text, request.voice)
         
+        # Визначаємо формат (MP3 для Edge TTS, WAV для Fish Speech)
+        # MP3 починається з ID3 або 0xFF 0xFB
+        is_mp3 = audio_bytes[:3] == b'ID3' or (len(audio_bytes) > 1 and audio_bytes[0] == 0xFF)
+        
+        ext = ".mp3" if is_mp3 else ".wav"
+        media_type = "audio/mpeg" if is_mp3 else "audio/wav"
+        
         # Зберігаємо тимчасовий файл
-        temp_path = f"/tmp/tts_{uuid.uuid4()}.wav"
+        temp_path = f"/tmp/tts_{uuid.uuid4()}{ext}"
         with open(temp_path, 'wb') as f:
             f.write(audio_bytes)
         
         return FileResponse(
             temp_path,
-            media_type="audio/wav",
-            filename="response.wav"
+            media_type=media_type,
+            filename=f"response{ext}"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Помилка синтезу: {str(e)}")

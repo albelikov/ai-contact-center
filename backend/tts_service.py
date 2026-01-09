@@ -1,113 +1,150 @@
 """
-TTS Service - Fish Speech Text-to-Speech для української мови
-Синтез голосу для відповідей агента
+TTS Service - Text-to-Speech для української мови
+Підтримує: Edge TTS (Microsoft), Fish Speech (GPU)
 """
-import torch
-import numpy as np
-from typing import Optional, Tuple
+import asyncio
 import io
 import wave
-import struct
+import tempfile
+import os
+from typing import Tuple
 
-from config import FISH_SPEECH_DEVICE, FISH_SPEECH_SAMPLE_RATE
+# Спроба імпорту edge-tts (основний TTS без GPU)
+try:
+    import edge_tts
+    EDGE_TTS_AVAILABLE = True
+    print("[TTS] Edge TTS доступний")
+except ImportError:
+    EDGE_TTS_AVAILABLE = False
+    print("[TTS] Edge TTS не встановлено. Встановіть: pip install edge-tts")
+
+# Спроба імпорту Fish Speech (потребує GPU)
+try:
+    import torch
+    import numpy as np
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
-class FishSpeechTTS:
+class TTSService:
     """
-    Fish Speech Text-to-Speech для української мови
-    
-    Fish Speech - це open-source TTS модель з підтримкою багатьох мов,
-    включаючи українську. Має дуже природне звучання та можливість
-    клонування голосу.
-    
-    GitHub: https://github.com/fishaudio/fish-speech
-    Ліцензія: Apache 2.0 / CC-BY-NC-SA 4.0
+    Сервіс синтезу мовлення з підтримкою кількох движків:
+    1. Edge TTS (Microsoft) - безкоштовний, без GPU, гарна якість
+    2. Fish Speech - потребує GPU, найкраща якість
     """
+    
+    # Українські голоси Edge TTS
+    EDGE_VOICES = {
+        "female": "uk-UA-PolinaNeural",  # Жіночий голос
+        "male": "uk-UA-OstapNeural",      # Чоловічий голос
+        "default": "uk-UA-PolinaNeural"
+    }
     
     def __init__(self):
-        self.model = None
-        self.device = torch.device(FISH_SPEECH_DEVICE if torch.cuda.is_available() else 'cpu')
-        self.sample_rate = FISH_SPEECH_SAMPLE_RATE
-        self._load_model()
+        self.sample_rate = 24000
+        self.fish_speech_model = None
+        self._init_fish_speech()
     
-    def _load_model(self):
-        """Завантаження моделі Fish Speech"""
-        try:
-            # Fish Speech завантажується через їх API
-            # pip install git+https://github.com/fishaudio/fish-speech.git
+    def _init_fish_speech(self):
+        """Спроба ініціалізації Fish Speech (якщо є GPU)"""
+        if not TORCH_AVAILABLE:
+            return
             
-            # Спроба імпорту Fish Speech
-            try:
+        try:
+            if torch.cuda.is_available():
                 from fish_speech.inference import TTSInference
-                self.model = TTSInference(
+                self.fish_speech_model = TTSInference(
                     model_path="fish-speech-1.4",
-                    device=self.device
+                    device="cuda"
                 )
-                print(f"[Fish Speech TTS] Модель завантажено на {self.device}")
-            except ImportError:
-                print("[Fish Speech TTS] Fish Speech не встановлено, використовується fallback режим")
-                self.model = None
-                
+                print("[TTS] Fish Speech завантажено (GPU)")
         except Exception as e:
-            print(f"[Fish Speech TTS] Помилка завантаження моделі: {e}")
-            self.model = None
+            print(f"[TTS] Fish Speech недоступний: {e}")
+            self.fish_speech_model = None
     
     def synthesize(self, text: str, voice: str = "default") -> Tuple[bytes, int]:
         """
         Синтез мовлення з тексту
         
         Args:
-            text: Текст для синтезу українською мовою
-            voice: Ідентифікатор голосу (для клонування)
+            text: Текст українською мовою
+            voice: Голос (female, male, default)
             
         Returns:
-            Tuple[bytes, int]: (аудіо байти у форматі WAV, sample rate)
+            Tuple[bytes, int]: (MP3/WAV байти, sample rate)
         """
-        if self.model is None:
-            return self._fallback_synthesize(text)
+        # Пріоритет 1: Fish Speech (якщо є GPU)
+        if self.fish_speech_model is not None:
+            try:
+                return self._synthesize_fish_speech(text, voice)
+            except Exception as e:
+                print(f"[TTS] Fish Speech помилка: {e}")
         
-        try:
-            # Синтез через Fish Speech
-            audio = self.model.synthesize(
-                text=text,
-                speaker=voice,
-                language="uk"  # Українська мова
-            )
-            
-            # Конвертація в WAV байти
-            wav_bytes = self._audio_to_wav(audio)
-            
-            return wav_bytes, self.sample_rate
-            
-        except Exception as e:
-            print(f"[Fish Speech TTS] Помилка синтезу: {e}")
-            return self._fallback_synthesize(text)
+        # Пріоритет 2: Edge TTS (без GPU)
+        if EDGE_TTS_AVAILABLE:
+            try:
+                return self._synthesize_edge_tts(text, voice)
+            except Exception as e:
+                print(f"[TTS] Edge TTS помилка: {e}")
+        
+        # Fallback: генерація тиші
+        print("[TTS] Жоден TTS движок не доступний!")
+        return self._generate_silence(), self.sample_rate
     
-    def synthesize_to_file(self, text: str, output_path: str, voice: str = "default") -> bool:
-        """Синтез мовлення та збереження у файл"""
+    def _synthesize_edge_tts(self, text: str, voice: str = "default") -> Tuple[bytes, int]:
+        """Синтез через Microsoft Edge TTS"""
+        voice_name = self.EDGE_VOICES.get(voice, self.EDGE_VOICES["default"])
+        
+        # Edge TTS працює асинхронно
+        async def _generate():
+            communicate = edge_tts.Communicate(text, voice_name)
+            
+            # Зберігаємо у тимчасовий файл
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_path = tmp.name
+            
+            await communicate.save(tmp_path)
+            
+            with open(tmp_path, "rb") as f:
+                audio_bytes = f.read()
+            
+            os.unlink(tmp_path)
+            return audio_bytes
+        
+        # Запускаємо асинхронну функцію
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            audio_bytes, sample_rate = self.synthesize(text, voice)
-            
-            with open(output_path, 'wb') as f:
-                f.write(audio_bytes)
-            
-            print(f"[Fish Speech TTS] Аудіо збережено: {output_path}")
-            return True
-            
-        except Exception as e:
-            print(f"[Fish Speech TTS] Помилка збереження: {e}")
-            return False
+            audio_bytes = loop.run_until_complete(_generate())
+        finally:
+            loop.close()
+        
+        print(f"[TTS] Edge TTS синтезував: {text[:50]}...")
+        return audio_bytes, self.sample_rate
     
-    def _audio_to_wav(self, audio: np.ndarray) -> bytes:
-        """Конвертація numpy array в WAV байти"""
+    def _synthesize_fish_speech(self, text: str, voice: str = "default") -> Tuple[bytes, int]:
+        """Синтез через Fish Speech (GPU)"""
+        audio = self.fish_speech_model.synthesize(
+            text=text,
+            speaker=voice,
+            language="uk"
+        )
+        
+        wav_bytes = self._audio_to_wav(audio)
+        print(f"[TTS] Fish Speech синтезував: {text[:50]}...")
+        return wav_bytes, 44100
+    
+    def _audio_to_wav(self, audio) -> bytes:
+        """Конвертація numpy array в WAV"""
+        import numpy as np
         buffer = io.BytesIO()
         
         with wave.open(buffer, 'wb') as wav_file:
-            wav_file.setnchannels(1)  # Mono
-            wav_file.setsampwidth(2)  # 16-bit
-            wav_file.setframerate(self.sample_rate)
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(44100)
             
-            # Нормалізація та конвертація в int16
             audio_normalized = np.clip(audio, -1.0, 1.0)
             audio_int16 = (audio_normalized * 32767).astype(np.int16)
             wav_file.writeframes(audio_int16.tobytes())
@@ -115,49 +152,33 @@ class FishSpeechTTS:
         buffer.seek(0)
         return buffer.read()
     
-    def _fallback_synthesize(self, text: str) -> Tuple[bytes, int]:
-        """
-        Fallback синтез для демонстрації без реальної моделі
-        Генерує тиху аудіо-заглушку
-        """
-        print(f"[Fish Speech TTS] Fallback режим для тексту: {text[:50]}...")
-        
-        # Генеруємо 2 секунди тихого аудіо як заглушку
-        duration = 2.0
+    def _generate_silence(self) -> bytes:
+        """Генерація тихого аудіо як fallback"""
+        import numpy as np
+        duration = 1.0
         num_samples = int(self.sample_rate * duration)
+        audio = np.zeros(num_samples, dtype=np.int16)
         
-        # Тихий сигнал з невеликим шумом
-        audio = np.random.uniform(-0.001, 0.001, num_samples).astype(np.float32)
+        buffer = io.BytesIO()
+        with wave.open(buffer, 'wb') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(self.sample_rate)
+            wav_file.writeframes(audio.tobytes())
         
-        return self._audio_to_wav(audio), self.sample_rate
+        buffer.seek(0)
+        return buffer.read()
     
-    def clone_voice(self, reference_audio: bytes, voice_id: str) -> bool:
-        """
-        Клонування голосу з референсного аудіо
-        
-        Fish Speech дозволяє клонувати голос з 10-30 секунд аудіо.
-        Це може бути використано для створення голосу оператора.
-        """
-        if self.model is None:
-            print("[Fish Speech TTS] Клонування недоступне у fallback режимі")
-            return False
-        
-        try:
-            # Fish Speech voice cloning API
-            self.model.clone_voice(
-                audio_bytes=reference_audio,
-                voice_id=voice_id
-            )
-            print(f"[Fish Speech TTS] Голос '{voice_id}' успішно клоновано")
-            return True
-            
-        except Exception as e:
-            print(f"[Fish Speech TTS] Помилка клонування голосу: {e}")
-            return False
+    def get_available_voices(self) -> dict:
+        """Отримати список доступних голосів"""
+        return {
+            "edge_tts": list(self.EDGE_VOICES.keys()) if EDGE_TTS_AVAILABLE else [],
+            "fish_speech": ["default"] if self.fish_speech_model else []
+        }
 
 
-# Глобальний екземпляр TTS
-tts_service = FishSpeechTTS()
+# Глобальний екземпляр
+tts_service = TTSService()
 
 
 def synthesize_speech(text: str, voice: str = "default") -> Tuple[bytes, int]:
@@ -167,4 +188,11 @@ def synthesize_speech(text: str, voice: str = "default") -> Tuple[bytes, int]:
 
 def synthesize_to_file(text: str, output_path: str, voice: str = "default") -> bool:
     """Синтезувати мовлення та зберегти у файл"""
-    return tts_service.synthesize_to_file(text, output_path, voice)
+    try:
+        audio_bytes, _ = tts_service.synthesize(text, voice)
+        with open(output_path, 'wb') as f:
+            f.write(audio_bytes)
+        return True
+    except Exception as e:
+        print(f"[TTS] Помилка збереження: {e}")
+        return False
