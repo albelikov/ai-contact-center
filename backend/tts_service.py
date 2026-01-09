@@ -94,31 +94,32 @@ class TTSService:
     
     def _synthesize_edge_tts(self, text: str, voice: str = "default") -> Tuple[bytes, int]:
         """Синтез через Microsoft Edge TTS"""
+        import concurrent.futures
+        
         voice_name = self.EDGE_VOICES.get(voice, self.EDGE_VOICES["default"])
         
-        # Edge TTS працює асинхронно
-        async def _generate():
-            communicate = edge_tts.Communicate(text, voice_name)
+        def _run_in_thread():
+            """Запуск edge-tts в окремому потоці з власним event loop"""
+            async def _generate():
+                communicate = edge_tts.Communicate(text, voice_name)
+                
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                    tmp_path = tmp.name
+                
+                await communicate.save(tmp_path)
+                
+                with open(tmp_path, "rb") as f:
+                    audio_bytes = f.read()
+                
+                os.unlink(tmp_path)
+                return audio_bytes
             
-            # Зберігаємо у тимчасовий файл
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                tmp_path = tmp.name
-            
-            await communicate.save(tmp_path)
-            
-            with open(tmp_path, "rb") as f:
-                audio_bytes = f.read()
-            
-            os.unlink(tmp_path)
-            return audio_bytes
+            return asyncio.run(_generate())
         
-        # Запускаємо асинхронну функцію
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            audio_bytes = loop.run_until_complete(_generate())
-        finally:
-            loop.close()
+        # Запускаємо в окремому потоці, щоб уникнути конфлікту event loop
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(_run_in_thread)
+            audio_bytes = future.result(timeout=30)
         
         print(f"[TTS] Edge TTS синтезував: {text[:50]}...")
         return audio_bytes, self.sample_rate
