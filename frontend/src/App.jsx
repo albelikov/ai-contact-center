@@ -7,24 +7,13 @@ import {
   Wifi, WifiOff, Settings, Database, Plus, Pencil, Trash2, X, Save,
   Users, ListTree, MessageCircle, RefreshCw, AlertCircle
 } from 'lucide-react';
-import type { 
-  ClassifierCategory, 
-  Executor, 
-  ConversationAlgorithm,
-  ClassificationResult,
-  CallRecord,
-  ChatMessage,
-  CallState,
-  Stats,
-  HealthResponse
-} from './types';
 
 // Конфігурація бекенду
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/call';
 
 // Локальний класифікатор для fallback режиму
-const CLASSIFIER_DATA: ClassifierCategory[] = [
+const CLASSIFIER_DATA = [
   {
     id: '1',
     problem: 'Благоустрій території',
@@ -146,12 +135,7 @@ const SAMPLE_QUERIES = [
 // ===========================================
 // Компонент візуалізації аудіо
 // ===========================================
-interface AudioVisualizerProps {
-  isActive: boolean;
-  type?: 'listening' | 'speaking';
-}
-
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, type = 'listening' }) => {
+const AudioVisualizer = ({ isActive, type = 'listening' }) => {
   const bars = 5;
   const color = type === 'listening' ? 'bg-red-500' : 'bg-green-500';
   
@@ -176,11 +160,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, type = 'lis
 // ===========================================
 // Компонент повідомлення в чаті
 // ===========================================
-interface ChatMessageProps {
-  message: ChatMessage;
-}
-
-const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message }) => (
+const ChatMessageComponent = ({ message }) => (
   <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-3`}>
     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
       message.isUser 
@@ -198,11 +178,7 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message }) => (
 // ===========================================
 // Компонент бейджа терміновості
 // ===========================================
-interface CategoryBadgeProps {
-  urgency: ClassificationResult['urgency'];
-}
-
-const CategoryBadge: React.FC<CategoryBadgeProps> = ({ urgency }) => {
+const CategoryBadge = ({ urgency }) => {
   const styles = {
     emergency: 'bg-red-100 text-red-800 border-red-300',
     short: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -228,12 +204,7 @@ const CategoryBadge: React.FC<CategoryBadgeProps> = ({ urgency }) => {
 // ===========================================
 // Компонент панелі стану системи
 // ===========================================
-interface SystemStatusProps {
-  isConnected: boolean;
-  useFishSpeech: boolean;
-}
-
-const SystemStatus: React.FC<SystemStatusProps> = ({ isConnected, useFishSpeech }) => (
+const SystemStatus = ({ isConnected, useFishSpeech }) => (
   <div className="bg-white rounded-2xl shadow-md p-6">
     <h3 className="font-semibold text-gray-800 mb-4">Статус системи</h3>
     <div className="space-y-3">
@@ -271,11 +242,7 @@ const SystemStatus: React.FC<SystemStatusProps> = ({ isConnected, useFishSpeech 
 // ===========================================
 // Компонент швидкої статистики
 // ===========================================
-interface QuickStatsProps {
-  stats: Stats;
-}
-
-const QuickStats: React.FC<QuickStatsProps> = ({ stats }) => {
+const QuickStats = ({ stats }) => {
   const aiResolvedPercent = stats.totalCalls > 0 
     ? Math.round((stats.aiResolved / stats.totalCalls) * 100) 
     : 0;
@@ -300,33 +267,33 @@ const QuickStats: React.FC<QuickStatsProps> = ({ stats }) => {
 // ===========================================
 // Головний компонент App
 // ===========================================
-const App: React.FC = () => {
+const App = () => {
   // Стани
-  const [activeView, setActiveView] = useState<string>('dashboard');
-  const [callState, setCallState] = useState<CallState>('idle');
+  const [activeView, setActiveView] = useState('dashboard');
+  const [callState, setCallState] = useState('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [transcript, setTranscript] = useState('');
-  const [classification, setClassification] = useState<ClassificationResult | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
+  const [classification, setClassification] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [callHistory, setCallHistory] = useState([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [useFishSpeech, setUseFishSpeech] = useState(true);
-  const [stats, setStats] = useState<Stats>({
+  const [stats, setStats] = useState({
     totalCalls: 0,
     aiResolved: 0,
     escalated: 0,
     avgResponseTime: 0
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
 
   // Стани для довідників
-  const [executors, setExecutors] = useState<Executor[]>([]);
-  const [classifiers, setClassifiers] = useState<ClassifierCategory[]>([]);
-  const [algorithms, setAlgorithms] = useState<ConversationAlgorithm[]>([]);
+  const [executors, setExecutors] = useState([]);
+  const [classifiers, setClassifiers] = useState([]);
+  const [algorithms, setAlgorithms] = useState([]);
   const [refLoading, setRefLoading] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ type: string; data: unknown } | null>(null);
+  const [editingItem, setEditingItem] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentRefType, setCurrentRefType] = useState('classifiers');
 
@@ -335,16 +302,16 @@ const App: React.FC = () => {
   const [lastTranscript, setLastTranscript] = useState('');
 
   // Refs
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioQueueRef = useRef<Array<{ text: string; callback?: () => void; useBackend: boolean }>>([]);
+  const chatEndRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const wsRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recognitionRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const recordingTimeoutRef = useRef(null);
 
   // Ініціалізація AudioContext
   useEffect(() => {
@@ -362,7 +329,7 @@ const App: React.FC = () => {
       try {
         const response = await fetch(`${BACKEND_URL}/api/health`);
         if (response.ok) {
-          const data: HealthResponse = await response.json();
+          const data = await response.json();
           setIsConnected(true);
           console.log('[Backend] Підключено:', data);
         } else {
@@ -397,9 +364,9 @@ const App: React.FC = () => {
   }, [callState]);
 
   // Функція класифікації запиту (локальна)
-  const classifyQueryLocal = useCallback((query: string): ClassificationResult => {
+  const classifyQueryLocal = useCallback((query) => {
     const lowerQuery = query.toLowerCase();
-    let bestMatch: ClassifierCategory | null = null;
+    let bestMatch = null;
     let highestScore = 0;
 
     CLASSIFIER_DATA.forEach(item => {
@@ -452,7 +419,7 @@ const App: React.FC = () => {
   }, []);
 
   // Відтворення WAV аудіо з байтів
-  const playAudioBytes = useCallback(async (audioBytes: ArrayBuffer | Blob): Promise<void> => {
+  const playAudioBytes = useCallback(async (audioBytes) => {
     return new Promise((resolve) => {
       if (!audioContextRef.current || !isSpeakerOn) {
         resolve();
@@ -493,7 +460,7 @@ const App: React.FC = () => {
   }, [isSpeakerOn]);
 
   // Fallback: Web Speech API TTS
-  const speakWithWebSpeech = useCallback((text: string, callback?: () => void): void => {
+  const speakWithWebSpeech = useCallback((text, callback) => {
     if (!('speechSynthesis' in window) || !isSpeakerOn) {
       if (callback) setTimeout(callback, 1000);
       return;
@@ -531,11 +498,11 @@ const App: React.FC = () => {
   }, [isSpeakerOn]);
 
   // Обробник черги аудіо
-  const processAudioQueue = useCallback(async (): Promise<void> => {
+  const processAudioQueue = useCallback(async () => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
     
     isPlayingRef.current = true;
-    const { text, callback, useBackend } = audioQueueRef.current.shift()!;
+    const { text, callback, useBackend } = audioQueueRef.current.shift();
     
     try {
       if (useBackend && isConnected && useFishSpeech) {
@@ -581,7 +548,7 @@ const App: React.FC = () => {
   }, [isConnected, useFishSpeech, playAudioBytes, speakWithWebSpeech]);
 
   // Синтез мовлення через Fish Speech API з чергою
-  const synthesizeSpeech = useCallback((text: string, callback?: () => void): void => {
+  const synthesizeSpeech = useCallback((text, callback) => {
     audioQueueRef.current.push({ text, callback, useBackend: true });
     processAudioQueue();
   }, [processAudioQueue]);
@@ -639,7 +606,7 @@ const App: React.FC = () => {
   }, [callState, isConnected]);
 
   // Backend ASR через MediaRecorder
-  const startBackendRecording = useCallback(async (): Promise<void> => {
+  const startBackendRecording = useCallback(async () => {
     console.log('[BackendASR] Початок запису...');
     try {
       if (!mediaStreamRef.current) {
@@ -724,13 +691,13 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('[BackendASR] Помилка початку запису:', error);
       setIsRecording(false);
-      if ((error as Error).name === 'NotAllowedError') {
+      if (error.name === 'NotAllowedError') {
         setError('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
       }
     }
   }, [callState]);
 
-  const stopBackendRecording = useCallback((): void => {
+  const stopBackendRecording = useCallback(() => {
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);
     }
@@ -741,14 +708,14 @@ const App: React.FC = () => {
   }, []);
 
   // Обробка розпізнаного тексту
-  const processVoiceText = useCallback(async (userText: string): Promise<void> => {
+  const processVoiceText = useCallback(async (userText) => {
     if (!userText.trim()) {
       setCallState('idle');
       return;
     }
     
     // Додаємо повідомлення користувача
-    const userMsg: ChatMessage = {
+    const userMsg = {
       id: Date.now(),
       text: userText,
       isUser: true,
@@ -760,7 +727,7 @@ const App: React.FC = () => {
     setError(null);
     
     try {
-      let result: ClassificationResult;
+      let result;
       
       if (isConnected) {
         const classifyRes = await fetch(`${BACKEND_URL}/api/classify`, {
@@ -782,7 +749,7 @@ const App: React.FC = () => {
       setClassification(result);
       
       const responseText = result.response || 'Дякую за ваше звернення.';
-      const agentMsg: ChatMessage = {
+      const agentMsg = {
         id: Date.now() + 1,
         text: responseText,
         isUser: false,
@@ -792,10 +759,10 @@ const App: React.FC = () => {
       
       // Озвучуємо відповідь
       setCallState('responding');
-      await new Promise<void>(resolve => {
+      await new Promise((resolve) => {
         synthesizeSpeech(responseText, () => {
           const followUp = 'Чи можу я ще чимось допомогти?';
-          const followUpMsg: ChatMessage = {
+          const followUpMsg = {
             id: Date.now() + 2,
             text: followUp,
             isUser: false,
@@ -818,7 +785,7 @@ const App: React.FC = () => {
   }, [isConnected, classifyQueryLocal, synthesizeSpeech]);
 
   // Почати голосовий діалог
-  const startVoiceCall = useCallback(async (): Promise<void> => {
+  const startVoiceCall = useCallback(async () => {
     if (!recognitionRef.current) {
       setError('Ваш браузер не підтримує розпізнавання голосу. Використовуйте Chrome.');
       return;
@@ -831,7 +798,7 @@ const App: React.FC = () => {
     setError(null);
     
     const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію. Чим можу допомогти?';
-    const greetingMsg: ChatMessage = {
+    const greetingMsg = {
       id: Date.now(),
       text: greeting,
       isUser: false,
@@ -842,7 +809,7 @@ const App: React.FC = () => {
     setCallState('responding');
     console.log('[Voice] Початок привітання TTS...');
     
-    await new Promise<void>(resolve => {
+    await new Promise((resolve) => {
       synthesizeSpeech(greeting, () => {
         console.log('[Voice] Привітання закінчено, початок прослуховування...');
         setCallState('processing');
@@ -861,7 +828,7 @@ const App: React.FC = () => {
   }, [synthesizeSpeech]);
 
   // Почати прослуховування
-  const startListening = useCallback((): void => {
+  const startListening = useCallback(() => {
     console.log('[Voice] startListening, useBackendASR:', isConnected);
     
     if (isConnected) {
@@ -890,7 +857,7 @@ const App: React.FC = () => {
   }, [isConnected, startBackendRecording]);
 
   // Зупинити прослуховування
-  const stopListening = useCallback((): void => {
+  const stopListening = useCallback(() => {
     if (isConnected) {
       stopBackendRecording();
     } else if (recognitionRef.current && isRecording) {
@@ -900,7 +867,7 @@ const App: React.FC = () => {
   }, [isConnected, isRecording, stopBackendRecording]);
 
   // Симуляція вхідного дзвінка
-  const simulateIncomingCall = useCallback(async (): Promise<void> => {
+  const simulateIncomingCall = useCallback(async () => {
     setCallState('ringing');
     setChatMessages([]);
     setTranscript('');
@@ -912,7 +879,7 @@ const App: React.FC = () => {
       
       const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію контактного центру. Чим можу вам допомогти?';
       
-      const greetingMsg: ChatMessage = {
+      const greetingMsg = {
         id: 1,
         text: greeting,
         isUser: false,
@@ -920,7 +887,7 @@ const App: React.FC = () => {
       };
       setChatMessages([greetingMsg]);
       
-      await new Promise<void>(resolve => {
+      await new Promise((resolve) => {
         synthesizeSpeech(greeting, () => {
           setTimeout(() => {
             const randomQuery = SAMPLE_QUERIES[Math.floor(Math.random() * SAMPLE_QUERIES.length)];
@@ -933,13 +900,13 @@ const App: React.FC = () => {
   }, [synthesizeSpeech]);
 
   // Обробка запиту користувача
-  const processUserQuery = useCallback(async (query: string): Promise<void> => {
+  const processUserQuery = useCallback(async (query) => {
     setCallState('processing');
     setTranscript(query);
     
-    await new Promise<void>(resolve => {
+    await new Promise((resolve) => {
       synthesizeSpeech(query, () => {
-        const userMsg: ChatMessage = {
+        const userMsg = {
           id: Date.now(),
           text: query,
           isUser: true,
@@ -963,7 +930,7 @@ const App: React.FC = () => {
   }, [isConnected, classifyQueryLocal, synthesizeSpeech]);
 
   // Отримання класифікації з бекенду
-  const fetchClassification = async (query: string): Promise<ClassificationResult> => {
+  const fetchClassification = async (query) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/classify`, {
         method: 'POST',
@@ -982,10 +949,10 @@ const App: React.FC = () => {
   };
 
   // Генерація відповіді
-  const generateResponse = useCallback(async (classification: ClassificationResult, originalQuery: string): Promise<void> => {
+  const generateResponse = useCallback(async (classification, originalQuery) => {
     setCallState('responding');
     
-    let response: string;
+    let response;
     let needsEscalation = false;
     
     if (classification && classification.confidence > 0.7) {
@@ -995,7 +962,7 @@ const App: React.FC = () => {
       needsEscalation = true;
     }
     
-    const agentMsg: ChatMessage = {
+    const agentMsg = {
       id: Date.now(),
       text: response,
       isUser: false,
@@ -1003,7 +970,7 @@ const App: React.FC = () => {
     };
     setChatMessages(prev => [...prev, agentMsg]);
     
-    await new Promise<void>(resolve => {
+    await new Promise((resolve) => {
       synthesizeSpeech(response, () => {
         setStats(prev => ({
           totalCalls: prev.totalCalls + 1,
@@ -1012,7 +979,7 @@ const App: React.FC = () => {
           avgResponseTime: Math.round((prev.avgResponseTime * prev.totalCalls + 3.5) / (prev.totalCalls + 1) * 10) / 10
         }));
         
-        const historyRecord: CallRecord = {
+        const historyRecord = {
           id: Date.now().toString(),
           timestamp: new Date().toLocaleString('uk-UA'),
           query: originalQuery,
@@ -1023,7 +990,7 @@ const App: React.FC = () => {
         setCallHistory(prev => [historyRecord, ...prev.slice(0, 9)]);
         
         setTimeout(async () => {
-          let closingMsg: ChatMessage;
+          let closingMsg;
           if (needsEscalation) {
             closingMsg = {
               id: Date.now() + 1,
@@ -1041,7 +1008,7 @@ const App: React.FC = () => {
           }
           setChatMessages(prev => [...prev, closingMsg]);
           
-          await new Promise<void>(res => {
+          await new Promise((res) => {
             synthesizeSpeech(closingMsg.text, () => {
               setCallState('active');
               res();
@@ -1055,7 +1022,7 @@ const App: React.FC = () => {
   }, [synthesizeSpeech]);
 
   // Завершення дзвінка
-  const endCall = useCallback((): void => {
+  const endCall = useCallback(() => {
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
     setCallState('ended');
