@@ -762,7 +762,8 @@ const App = () => {
         
         try {
           const formData = new FormData();
-          formData.append('file', audioBlob, 'recording.webm');
+          // Бекенд очікує поле 'audio'
+          formData.append('audio', audioBlob, 'recording.webm');
           
           const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
             method: 'POST',
@@ -772,9 +773,11 @@ const App = () => {
           if (response.ok) {
             const data = await response.json();
             console.log('[BackendASR] Transcription result:', data);
-            if (data.text && data.text.trim()) {
-              setLastTranscript(data.text);
-              processVoiceText(data.text);
+            // Бекенд повертає 'transcript'
+            const transcribedText = data.transcript || data.text || '';
+            if (transcribedText.trim()) {
+              setLastTranscript(transcribedText);
+              processVoiceText(transcribedText);
             } else {
               setLastTranscript('[Не вдалось розпізнати]');
               // Продовжуємо слухати
