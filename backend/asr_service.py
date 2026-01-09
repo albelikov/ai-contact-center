@@ -10,10 +10,11 @@ try:
     import torch
     import torchaudio
     TORCH_AVAILABLE = True
-    print("[ASR] PyTorch доступний")
-except ImportError:
+    TORCH_VERSION = torch.__version__
+    print(f"[ASR] PyTorch {TORCH_VERSION} доступний")
+except ImportError as e:
     TORCH_AVAILABLE = False
-    print("[ASR] PyTorch не встановлено - ASR працює в демо-режимі")
+    print(f"[ASR] PyTorch НЕ доступний - ASR працює в демо-режимі: {e}")
 
 
 # Демо-запити для fallback режиму
@@ -43,20 +44,24 @@ class ASRService:
         """Завантаження моделі Silero STT"""
         try:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            print(f"[ASR] Завантаження Silero моделі на {self.device}...")
             self.model, self.decoder, self.utils = torch.hub.load(
                 repo_or_dir='snakers4/silero-models',
                 model='silero_stt',
                 language='uk',
                 device=self.device
             )
-            print(f"[ASR] Silero модель завантажено на {self.device}")
+            print(f"[ASR] ✅ Silero модель успішно завантажено на {self.device}")
         except Exception as e:
-            print(f"[ASR] Помилка завантаження Silero: {e}")
+            print(f"[ASR] ❌ Помилка завантаження Silero: {e}")
+            import traceback
+            traceback.print_exc()
             self.model = None
     
     def transcribe_file(self, audio_path: str) -> str:
         """Транскрибування аудіофайлу"""
         if self.model is None:
+            print("[ASR] transcribe_file: модель недоступна, демо-режим")
             return self._demo_transcribe()
         
         try:
@@ -65,16 +70,22 @@ class ASRService:
             input_data = prepare_model_input([audio], device=self.device)
             output = self.model(input_data)
             transcript = self.decoder(output[0].cpu())
-            return transcript.strip()
+            result = transcript.strip()
+            print(f"[ASR] transcribe_file: розпізнано \"{result}\"")
+            return result
         except Exception as e:
-            print(f"[ASR] Помилка: {e}")
+            print(f"[ASR] transcribe_file помилка: {e}")
             return self._demo_transcribe()
     
     def transcribe_bytes(self, audio_bytes: bytes) -> str:
         """Транскрибування аудіо з байтів"""
-        if self.model is None or not TORCH_AVAILABLE:
-            print("[ASR] Модель недоступна - демо-режим")
+        print(f"[ASR] transcribe_bytes викликано, TORCH_AVAILABLE={TORCH_AVAILABLE}, model={self.model is not None}")
+        
+        if not TORCH_AVAILABLE or self.model is None:
+            print("[ASR] ⚠️ Модель недоступна - демо-режим (вигадує фразу)")
             return self._demo_transcribe()
+        
+        print(f"[ASR] 🎤 Починаю розпізнавання аудіо ({len(audio_bytes)} байт)...")
         
         try:
             import io
@@ -121,15 +132,21 @@ class ASRService:
             input_data = prepare_model_input([waveform.squeeze()], device=self.device)
             output = self.model(input_data)
             transcript = self.decoder(output[0].cpu())
-            print(f"[ASR] Розпізнано: {transcript.strip()}")
-            return transcript.strip()
+            result = transcript.strip()
+            print(f"[ASR] ✅ Розпізнано: \"{result}\"")
+            return result
         except Exception as e:
-            print(f"[ASR] Помилка: {e}")
+            print(f"[ASR] ❌ Помилка розпізнавання: {e}")
+            import traceback
+            traceback.print_exc()
+            print("[ASR] ⚠️ Використовую демо-режим через помилку")
             return self._demo_transcribe()
     
     def _demo_transcribe(self) -> str:
         """Демо-режим: повертає випадковий запит"""
-        return random.choice(DEMO_QUERIES)
+        result = random.choice(DEMO_QUERIES)
+        print(f"[ASR] 🎭 Демо-режим: вигадано \"{result}\"")
+        return result
 
 
 # Глобальний екземпляр
