@@ -4,7 +4,8 @@ import {
   FileText, Clock, AlertTriangle, 
   CheckCircle, PhoneCall, PhoneOff, Headphones, BarChart3, History,
   Zap, Droplets, Flame, Building2, Bus, HelpCircle, MessageSquare,
-  Wifi, WifiOff, Settings
+  Wifi, WifiOff, Settings, Database, Plus, Pencil, Trash2, X, Save,
+  Users, ListTree, MessageCircle, RefreshCw
 } from 'lucide-react';
 
 // Конфігурація бекенду
@@ -198,6 +199,315 @@ const CategoryBadge = ({ urgency }) => {
   );
 };
 
+// Модальне вікно редагування довідників
+const ReferenceModal = ({ type, data, executors, onClose, onSave }) => {
+  const isEdit = !!data;
+  const [formData, setFormData] = useState(data || {});
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-bold">
+            {isEdit ? 'Редагування' : 'Новий запис'}: {
+              type === 'classifiers' ? 'Категорія' :
+              type === 'executors' ? 'Виконавець' : 'Алгоритм'
+            }
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {type === 'classifiers' && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Категорія *</label>
+                  <input
+                    type="text"
+                    value={formData.problem || ''}
+                    onChange={(e) => updateField('problem', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Тип</label>
+                  <input
+                    type="text"
+                    value={formData.type || ''}
+                    onChange={(e) => updateField('type', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Підтип *</label>
+                  <input
+                    type="text"
+                    value={formData.subtype || ''}
+                    onChange={(e) => updateField('subtype', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Локація</label>
+                  <input
+                    type="text"
+                    value={formData.location || ''}
+                    onChange={(e) => updateField('location', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Шаблон відповіді *</label>
+                <textarea
+                  value={formData.response || ''}
+                  onChange={(e) => updateField('response', e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Виконавець</label>
+                  <select
+                    value={formData.executor_id || ''}
+                    onChange={(e) => {
+                      const exec = executors.find(ex => ex.id === e.target.value);
+                      updateField('executor_id', e.target.value);
+                      updateField('executor_name', exec?.name || '');
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Оберіть виконавця...</option>
+                    {executors.map(ex => (
+                      <option key={ex.id} value={ex.id}>{ex.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Або введіть назву</label>
+                  <input
+                    type="text"
+                    value={formData.executor_name || ''}
+                    onChange={(e) => updateField('executor_name', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Назва виконавця"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Терміновість</label>
+                  <select
+                    value={formData.urgency || 'standard'}
+                    onChange={(e) => updateField('urgency', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="emergency">Аварійний</option>
+                    <option value="short">Терміновий</option>
+                    <option value="standard">Стандартний</option>
+                    <option value="info">Інформаційний</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Час відповіді (год)</label>
+                  <input
+                    type="number"
+                    value={formData.response_time || 24}
+                    onChange={(e) => updateField('response_time', parseInt(e.target.value))}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова (через кому)</label>
+                <input
+                  type="text"
+                  value={(formData.keywords || []).join(', ')}
+                  onChange={(e) => updateField('keywords', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="сніг, розчистка, двір"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active !== false}
+                  onChange={(e) => updateField('is_active', e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <label htmlFor="is_active" className="text-sm text-gray-700">Активна категорія</label>
+              </div>
+            </>
+          )}
+
+          {type === 'executors' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Назва *</label>
+                <input
+                  type="text"
+                  value={formData.name || ''}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
+                  <input
+                    type="text"
+                    value={formData.phone || ''}
+                    onChange={(e) => updateField('phone', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => updateField('email', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Години роботи</label>
+                <input
+                  type="text"
+                  value={formData.work_hours || ''}
+                  onChange={(e) => updateField('work_hours', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="09:00-18:00 або 24/7"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => updateField('description', e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active !== false}
+                  onChange={(e) => updateField('is_active', e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <label htmlFor="is_active" className="text-sm text-gray-700">Активний виконавець</label>
+              </div>
+            </>
+          )}
+
+          {type === 'algorithms' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Назва *</label>
+                <input
+                  type="text"
+                  value={formData.name || ''}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
+                <textarea
+                  value={formData.description || ''}
+                  onChange={(e) => updateField('description', e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова для запуску (через кому)</label>
+                <input
+                  type="text"
+                  value={(formData.trigger_keywords || []).join(', ')}
+                  onChange={(e) => updateField('trigger_keywords', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="аварія, терміново, небезпека"
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is_default"
+                    checked={formData.is_default || false}
+                    onChange={(e) => updateField('is_default', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="is_default" className="text-sm text-gray-700">За замовчуванням</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={formData.is_active !== false}
+                    onChange={(e) => updateField('is_active', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="is_active" className="text-sm text-gray-700">Активний</label>
+                </div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  Кроки алгоритму можна редагувати через API або безпосередньо в файлі 
+                  <code className="bg-gray-200 px-1 mx-1 rounded">backend/data/algorithms.json</code>
+                </p>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+            >
+              Скасувати
+            </button>
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg"
+            >
+              <Save className="w-4 h-4" />
+              {isEdit ? 'Зберегти' : 'Створити'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Головний компонент
 const App = () => {
   // Стани
@@ -218,6 +528,15 @@ const App = () => {
     escalated: 0,
     avgResponseTime: 0
   });
+
+  // Стани для довідників
+  const [executors, setExecutors] = useState([]);
+  const [classifiers, setClassifiers] = useState([]);
+  const [algorithms, setAlgorithms] = useState([]);
+  const [refLoading, setRefLoading] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [currentRefType, setCurrentRefType] = useState('classifiers');
 
   const chatEndRef = useRef(null);
   const wsRef = useRef(null);
@@ -255,6 +574,93 @@ const App = () => {
     const interval = setInterval(checkBackend, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Завантаження довідників
+  const fetchReferences = useCallback(async () => {
+    if (!isConnected) return;
+    setRefLoading(true);
+    try {
+      const [execRes, classRes, algoRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/references/executors`),
+        fetch(`${BACKEND_URL}/api/references/classifiers`),
+        fetch(`${BACKEND_URL}/api/references/algorithms`)
+      ]);
+      
+      if (execRes.ok) {
+        const data = await execRes.json();
+        setExecutors(data.data || []);
+      }
+      if (classRes.ok) {
+        const data = await classRes.json();
+        setClassifiers(data.data || []);
+      }
+      if (algoRes.ok) {
+        const data = await algoRes.json();
+        setAlgorithms(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching references:', error);
+    }
+    setRefLoading(false);
+  }, [isConnected]);
+
+  // Завантажити довідники при підключенні
+  useEffect(() => {
+    if (isConnected) {
+      fetchReferences();
+    }
+  }, [isConnected, fetchReferences]);
+
+  // CRUD операції для довідників
+  const createReference = async (type, data) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/references/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        fetchReferences();
+        setShowAddModal(false);
+        // Перезавантажити класифікатор
+        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
+      }
+    } catch (error) {
+      console.error('Create error:', error);
+    }
+  };
+
+  const updateReference = async (type, id, data) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/references/${type}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        fetchReferences();
+        setEditingItem(null);
+        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
+      }
+    } catch (error) {
+      console.error('Update error:', error);
+    }
+  };
+
+  const deleteReference = async (type, id) => {
+    if (!confirm('Видалити цей запис?')) return;
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/references/${type}/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchReferences();
+        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+    }
+  };
 
   // Прокрутка чату донизу
   useEffect(() => {
@@ -620,7 +1026,7 @@ const App = () => {
             { id: 'dashboard', icon: PhoneCall, label: 'Дзвінки' },
             { id: 'history', icon: History, label: 'Історія' },
             { id: 'stats', icon: BarChart3, label: 'Статистика' },
-            { id: 'classifier', icon: FileText, label: 'Класифікатор' },
+            { id: 'references', icon: Database, label: 'Довідники' },
             { id: 'settings', icon: Settings, label: 'Налаштування' }
           ].map(tab => (
             <button
@@ -875,39 +1281,221 @@ const App = () => {
               </div>
             )}
 
-            {activeView === 'classifier' && (
+            {activeView === 'references' && (
               <div className="bg-white rounded-2xl shadow-md p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Класифікатор запитів</h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-medium text-gray-600">Категорія</th>
-                        <th className="px-4 py-3 text-left font-medium text-gray-600">Тип</th>
-                        <th className="px-4 py-3 text-left font-medium text-gray-600">Виконавець</th>
-                        <th className="px-4 py-3 text-left font-medium text-gray-600">Термін</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {CLASSIFIER_DATA.map(item => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">{item.problem}</td>
-                          <td className="px-4 py-3">{item.subtype}</td>
-                          <td className="px-4 py-3">{item.executor}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              item.urgency === 'emergency' ? 'bg-red-100 text-red-700' :
-                              item.urgency === 'short' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
-                            }`}>
-                              {item.responseTime} год
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-800">Довідники</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={fetchReferences}
+                      disabled={refLoading}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${refLoading ? 'animate-spin' : ''}`} />
+                      Оновити
+                    </button>
+                    <button
+                      onClick={() => { setShowAddModal(true); setEditingItem(null); }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Додати
+                    </button>
+                  </div>
                 </div>
+
+                {/* Підменю довідників */}
+                <div className="flex gap-2 mb-4 border-b pb-4">
+                  {[
+                    { id: 'classifiers', icon: ListTree, label: 'Класифікатор', count: classifiers.length },
+                    { id: 'executors', icon: Users, label: 'Виконавці', count: executors.length },
+                    { id: 'algorithms', icon: MessageCircle, label: 'Алгоритми', count: algorithms.length }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCurrentRefType(tab.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+                        currentRefType === tab.id
+                          ? 'bg-blue-100 text-blue-700 font-medium'
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <tab.icon className="w-4 h-4" />
+                      {tab.label}
+                      <span className="bg-white px-2 py-0.5 rounded-full text-xs">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {!isConnected ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <WifiOff className="w-12 h-12 mx-auto mb-3" />
+                    <p>Підключіться до бекенду для роботи з довідниками</p>
+                  </div>
+                ) : refLoading ? (
+                  <div className="text-center py-12">
+                    <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-blue-500" />
+                    <p className="text-gray-500">Завантаження...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Таблиця класифікатора */}
+                    {currentRefType === 'classifiers' && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Категорія</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Підтип</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Виконавець</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Термін</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {classifiers.map(item => (
+                              <tr key={item.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3">{item.problem}</td>
+                                <td className="px-4 py-3">{item.subtype}</td>
+                                <td className="px-4 py-3">{item.executor_name || item.executor}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    item.urgency === 'emergency' ? 'bg-red-100 text-red-700' :
+                                    item.urgency === 'short' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-green-100 text-green-700'
+                                  }`}>
+                                    {item.response_time} год
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setEditingItem({ type: 'classifiers', data: item })}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteReference('classifiers', item.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Таблиця виконавців */}
+                    {currentRefType === 'executors' && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Назва</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Телефон</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Години роботи</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Статус</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {executors.map(item => (
+                              <tr key={item.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium">{item.name}</td>
+                                <td className="px-4 py-3">{item.phone || '-'}</td>
+                                <td className="px-4 py-3">{item.work_hours || '-'}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {item.is_active ? 'Активний' : 'Неактивний'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setEditingItem({ type: 'executors', data: item })}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteReference('executors', item.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Таблиця алгоритмів */}
+                    {currentRefType === 'algorithms' && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Назва</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Опис</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Кроків</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Статус</th>
+                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {algorithms.map(item => (
+                              <tr key={item.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 font-medium">
+                                  {item.name}
+                                  {item.is_default && (
+                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                                      За замовчуванням
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-gray-500">{item.description || '-'}</td>
+                                <td className="px-4 py-3">{item.steps?.length || 0}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {item.is_active ? 'Активний' : 'Неактивний'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setEditingItem({ type: 'algorithms', data: item })}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteReference('algorithms', item.id)}
+                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -1061,6 +1649,23 @@ const App = () => {
           </div>
         </div>
       </div>
+
+      {/* Модальне вікно редагування */}
+      {(showAddModal || editingItem) && (
+        <ReferenceModal
+          type={editingItem?.type || currentRefType}
+          data={editingItem?.data}
+          executors={executors}
+          onClose={() => { setShowAddModal(false); setEditingItem(null); }}
+          onSave={(data) => {
+            if (editingItem) {
+              updateReference(editingItem.type, editingItem.data.id, data);
+            } else {
+              createReference(currentRefType, data);
+            }
+          }}
+        />
+      )}
 
       {/* Футер */}
       <footer className="bg-gray-800 text-gray-400 py-6 mt-12">
