@@ -696,9 +696,18 @@ const App = () => {
       recognitionRef.current.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
         setIsRecording(false);
-        setCallState('idle');
         if (event.error === 'no-speech') {
-          setLastTranscript('[Не почуто голос]');
+          setLastTranscript('[Не почуто голос - спробуйте ще]');
+          // Перезапускаємо слухання
+          setTimeout(() => {
+            if (callState !== 'idle' && callState !== 'ended') {
+              startListening();
+            }
+          }, 1000);
+        } else if (event.error === 'aborted') {
+          // Користувач скасував - нічого не робимо
+        } else {
+          setCallState('idle');
         }
       };
       
@@ -706,7 +715,7 @@ const App = () => {
         setIsRecording(false);
       };
     }
-  }, []);
+  }, [callState]);
   
   // Почати голосовий діалог
   const startVoiceCall = async () => {
@@ -722,7 +731,7 @@ const App = () => {
     setLastTranscript('');
     
     // Привітання
-    const greeting = 'Доброго дня! Я ваш голосовий помічник. Опишіть вашу проблему.';
+    const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію контактного центру. Чим можу вам допомогти?';
     const greetingMsg = {
       id: Date.now(),
       text: greeting,
@@ -732,9 +741,12 @@ const App = () => {
     setChatMessages([greetingMsg]);
     
     // Озвучуємо привітання, потім слухаємо
-    await synthesizeSpeech(greeting, () => {
+    setCallState('responding');
+    synthesizeSpeech(greeting, () => {
       // Після привітання починаємо слухати
-      startListening();
+      setTimeout(() => {
+        startListening();
+      }, 500);
     });
   };
   
