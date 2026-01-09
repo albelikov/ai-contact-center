@@ -9,6 +9,7 @@
 - **📊 Класифікація запитів** — на основі офіційного класифікатора
 - **👤 Передача оператору** — автоматична ескалація складних випадків
 - **💾 Інтеграція з базою даних** — збереження всіх звернень
+- **🔒 Безпека** — HTTP Basic Auth та Rate Limiting
 
 ## 🏗️ Архітектура
 
@@ -40,7 +41,7 @@
 └─────────────────────────┬───────────────────────────────┘
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   База даних                             │
+│                   SQLite / База даних                   │
 │            (Збереження звернень)                        │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -58,17 +59,21 @@
 
 ```bash
 cd backend
+
+# Копіювання та налаштування .env
+cp .env.example .env
+# Відредагуйте .env з вашими налаштуваннями
+
+# Створення віртуального середовища
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # або venv\Scripts\activate  # Windows
 
-pip install -r requirements.txt
-
-# Встановлення Fish Speech
-pip install git+https://github.com/fishaudio/fish-speech.git
+# Встановлення залежностей
+pip install -r requirements_fixed.txt
 
 # Запуск сервера
-python main.py
+python main_fixed.py
 ```
 
 ### Frontend (React)
@@ -80,23 +85,64 @@ npm run dev      # Розробка
 npm run build    # Продакшн
 ```
 
-## 🚀 Використання
+## 🔐 Аутентифікація
 
-### API Endpoints
+API захищений HTTP Basic Auth:
+
+| Ендпоінт | Користувач | Пароль | Опис |
+|----------|------------|--------|------|
+| `/api/classify` | `api_user` | з `.env` | Класифікація запитів |
+| `/api/transcribe` | `api_user` | з `.env` | Транскрибування аудіо |
+| `/api/synthesize` | `api_user` | з `.env` | Синтез мовлення |
+| `/api/references/*` | `admin` | з `.env` | Управління довідниками |
+
+Налаштування в `.env`:
+```env
+API_USERNAME=api_user
+API_PASSWORD=your_secure_password
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_admin_password
+```
+
+## 🚀 API Endpoints
+
+### Публічні ендпоінти
 
 | Метод | Endpoint | Опис |
 |-------|----------|------|
+| GET | `/` | Головна сторінка API |
 | GET | `/api/health` | Перевірка стану системи |
+
+### Захищені ендпоінти (потребує аутентифікації)
+
+| Метод | Endpoint | Опис |
+|-------|----------|------|
 | POST | `/api/classify` | Класифікація тексту |
 | POST | `/api/transcribe` | Транскрибування аудіо |
 | POST | `/api/synthesize` | Синтез мовлення |
-| WS | `/ws/call` | WebSocket для дзвінків |
+| GET | `/api/history` | Історія дзвінків |
+| GET | `/api/stats` | Статистика |
 
-### Приклад класифікації
+### Довідники (admin доступ)
+
+| Метод | Endpoint | Опис |
+|-------|----------|------|
+| GET/POST | `/api/references/executors` | Виконавці |
+| GET/POST | `/api/references/classifiers` | Класифікатор |
+| GET/POST | `/api/references/algorithms` | Алгоритми |
+
+### WebSocket
+
+| Endpoint | Опис |
+|----------|------|
+| `/ws/call` | Реальний час обробки дзвінків |
+
+## 📋 Приклад класифікації
 
 ```bash
 curl -X POST http://localhost:8000/api/classify \
   -H "Content-Type: application/json" \
+  -u api_user:password \
   -d '{"text": "У нас немає опалення вже другий день"}'
 ```
 
@@ -104,13 +150,17 @@ curl -X POST http://localhost:8000/api/classify \
 ```json
 {
   "success": true,
+  "query": "У нас немає опалення вже другий день",
   "classification": {
+    "id": "4",
     "problem": "Інженерні мережі",
+    "type": "Опалення",
     "subtype": "відсутність опалення",
     "executor": "Служба теплопостачання",
     "urgency": "emergency",
     "response_time": 3,
-    "confidence": 0.92
+    "confidence": 0.92,
+    "needs_operator": false
   }
 }
 ```
@@ -158,10 +208,11 @@ tts_service.clone_voice(
 
 ## 🔒 Безпека
 
-- Всі дані зберігаються локально
-- Інтеграція з базою даних через захищений API
-- Відповідність Закону про захист персональних даних
-- Автоматичне сповіщення про запис дзвінка
+- **HTTP Basic Auth** для всіх API ендпоінтів
+- **Rate Limiting** — 10 запитів/хв для API
+- **CORS** — налаштовується через `ALLOWED_ORIGINS`
+- **Валідація** вхідних даних через Pydantic
+- **Логування** всіх запитів та помилок
 
 ## 📊 Статистика
 
@@ -176,8 +227,9 @@ tts_service.clone_voice(
 - **Frontend**: React, TailwindCSS, Lucide Icons
 - **Backend**: FastAPI, Python
 - **ASR**: Silero STT (українська)
-- **TTS**: Fish Speech
+- **TTS**: Fish Speech / Edge TTS
 - **Database**: SQLite / PostgreSQL
+- **Security**: HTTP Basic Auth, Rate Limiting
 
 ## 📄 Ліцензія
 

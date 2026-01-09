@@ -5,17 +5,28 @@ import {
   CheckCircle, PhoneCall, PhoneOff, Headphones, BarChart3, History,
   Zap, Droplets, Flame, Building2, Bus, HelpCircle, MessageSquare,
   Wifi, WifiOff, Settings, Database, Plus, Pencil, Trash2, X, Save,
-  Users, ListTree, MessageCircle, RefreshCw
+  Users, ListTree, MessageCircle, RefreshCw, AlertCircle
 } from 'lucide-react';
+import type { 
+  ClassifierCategory, 
+  Executor, 
+  ConversationAlgorithm,
+  ClassificationResult,
+  CallRecord,
+  ChatMessage,
+  CallState,
+  Stats,
+  HealthResponse
+} from './types';
 
 // Конфігурація бекенду
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/call';
 
-// Класифікатор заявок (локальний fallback)
-const CLASSIFIER_DATA = [
+// Локальний класифікатор для fallback режиму
+const CLASSIFIER_DATA: ClassifierCategory[] = [
   {
-    id: 1,
+    id: '1',
     problem: 'Благоустрій території',
     type: 'Утримання території в зимовий період',
     subtype: 'розчистка снігу',
@@ -24,11 +35,11 @@ const CLASSIFIER_DATA = [
     executor: 'Управитель будинку',
     urgency: 'short',
     responseTime: 24,
-    icon: 'building',
-    keywords: ['сніг', 'розчистка', 'прибрати', 'замело', 'снігопад', 'двір']
+    keywords: ['сніг', 'розчистка', 'прибрати', 'замело', 'снігопад', 'двір'],
+    is_active: true
   },
   {
-    id: 2,
+    id: '2',
     problem: 'Благоустрій території',
     type: 'Благоустрій та санітарний стан',
     subtype: 'впавше дерево',
@@ -37,11 +48,11 @@ const CLASSIFIER_DATA = [
     executor: 'Аварійна служба',
     urgency: 'emergency',
     responseTime: 3,
-    icon: 'alert',
-    keywords: ['дерево', 'впало', 'машина', 'автомобіль', 'гілка', 'розпилити']
+    keywords: ['дерево', 'впало', 'машина', 'автомобіль', 'гілка', 'розпилити'],
+    is_active: true
   },
   {
-    id: 3,
+    id: '3',
     problem: 'Ремонт житлового фонду',
     type: 'Покрівля',
     subtype: 'протікання даху',
@@ -50,11 +61,11 @@ const CLASSIFIER_DATA = [
     executor: 'Аварійна служба',
     urgency: 'emergency',
     responseTime: 3,
-    icon: 'droplets',
-    keywords: ['протікає', 'дах', 'стеля', 'вода', 'капає', 'мокро', 'покрівля']
+    keywords: ['протікає', 'дах', 'стеля', 'вода', 'капає', 'мокро', 'покрівля'],
+    is_active: true
   },
   {
-    id: 4,
+    id: '4',
     problem: 'Інженерні мережі',
     type: 'Опалення',
     subtype: 'відсутність опалення',
@@ -63,11 +74,11 @@ const CLASSIFIER_DATA = [
     executor: 'Служба теплопостачання',
     urgency: 'emergency',
     responseTime: 3,
-    icon: 'flame',
-    keywords: ['опалення', 'холодно', 'батареї', 'радіатор', 'тепло', 'гаряча']
+    keywords: ['опалення', 'холодно', 'батареї', 'радіатор', 'тепло', 'гаряча'],
+    is_active: true
   },
   {
-    id: 5,
+    id: '5',
     problem: 'Інженерні мережі',
     type: 'Водопостачання',
     subtype: 'відсутність води',
@@ -76,11 +87,11 @@ const CLASSIFIER_DATA = [
     executor: 'Служба водопостачання',
     urgency: 'emergency',
     responseTime: 2,
-    icon: 'droplets',
-    keywords: ['вода', 'водопостачання', 'кран', 'немає води', 'відключили воду']
+    keywords: ['вода', 'водопостачання', 'кран', 'немає води', 'відключили воду'],
+    is_active: true
   },
   {
-    id: 6,
+    id: '6',
     problem: 'Інженерні мережі',
     type: 'Електропостачання',
     subtype: 'відключення світла',
@@ -89,11 +100,11 @@ const CLASSIFIER_DATA = [
     executor: 'Електропостачання',
     urgency: 'info',
     responseTime: 0,
-    icon: 'zap',
-    keywords: ['світло', 'електрика', 'відключили', 'немає світла', 'струм']
+    keywords: ['світло', 'електрика', 'відключили', 'немає світла', 'струм'],
+    is_active: true
   },
   {
-    id: 7,
+    id: '7',
     problem: 'Громадський транспорт',
     type: 'Маршрутки та автобуси',
     subtype: 'скарга на транспорт',
@@ -102,11 +113,11 @@ const CLASSIFIER_DATA = [
     executor: 'Департамент транспорту',
     urgency: 'standard',
     responseTime: 120,
-    icon: 'bus',
-    keywords: ['маршрутка', 'автобус', 'водій', 'транспорт', 'їде', 'не зупинився']
+    keywords: ['маршрутка', 'автобус', 'водій', 'транспорт', 'їде', 'не зупинився'],
+    is_active: true
   },
   {
-    id: 8,
+    id: '8',
     problem: 'Надзвичайні ситуації',
     type: 'Руйнування інфраструктури',
     subtype: 'пошкодження дороги',
@@ -115,12 +126,12 @@ const CLASSIFIER_DATA = [
     executor: 'Управління НС',
     urgency: 'emergency',
     responseTime: 1,
-    icon: 'alert',
-    keywords: ['руйнування', 'міст', 'дорога', 'яма', 'провал', 'аварія']
+    keywords: ['руйнування', 'міст', 'дорога', 'яма', 'провал', 'аварія'],
+    is_active: true
   }
 ];
 
-// Зразки голосових запитів
+// Зразки голосових запитів для демо
 const SAMPLE_QUERIES = [
   'Доброго дня, у нас на території не прибрали сніг вже три дні.',
   'Алло, на мою машину впало дерево, потрібно терміново допомогу!',
@@ -132,8 +143,15 @@ const SAMPLE_QUERIES = [
   'На дорозі величезна яма, машини не можуть проїхати.'
 ];
 
+// ===========================================
 // Компонент візуалізації аудіо
-const AudioVisualizer = ({ isActive, type = 'listening' }) => {
+// ===========================================
+interface AudioVisualizerProps {
+  isActive: boolean;
+  type?: 'listening' | 'speaking';
+}
+
+const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isActive, type = 'listening' }) => {
   const bars = 5;
   const color = type === 'listening' ? 'bg-red-500' : 'bg-green-500';
   
@@ -155,403 +173,180 @@ const AudioVisualizer = ({ isActive, type = 'listening' }) => {
   );
 };
 
+// ===========================================
 // Компонент повідомлення в чаті
-const ChatMessage = ({ message, isUser, timestamp }) => (
-  <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
+// ===========================================
+interface ChatMessageProps {
+  message: ChatMessage;
+}
+
+const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message }) => (
+  <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-3`}>
     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-      isUser 
+      message.isUser 
         ? 'bg-blue-600 text-white rounded-br-md' 
         : 'bg-gray-100 text-gray-800 rounded-bl-md'
     }`}>
-      <p className="text-sm leading-relaxed">{message}</p>
-      <span className={`text-xs mt-1 block ${isUser ? 'text-blue-200' : 'text-gray-500'}`}>
-        {timestamp}
+      <p className="text-sm leading-relaxed">{message.text}</p>
+      <span className={`text-xs mt-1 block ${message.isUser ? 'text-blue-200' : 'text-gray-500'}`}>
+        {message.timestamp}
       </span>
     </div>
   </div>
 );
 
-// Компонент бейджа категорії
-const CategoryBadge = ({ urgency }) => {
-  const getUrgencyStyle = () => {
-    switch (urgency) {
-      case 'emergency': return 'bg-red-100 text-red-800 border-red-300';
-      case 'short': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'info': return 'bg-blue-100 text-blue-800 border-blue-300';
-      default: return 'bg-green-100 text-green-800 border-green-300';
-    }
-  };
+// ===========================================
+// Компонент бейджа терміновості
+// ===========================================
+interface CategoryBadgeProps {
+  urgency: ClassificationResult['urgency'];
+}
 
-  const getUrgencyText = () => {
-    switch (urgency) {
-      case 'emergency': return 'Аварійний';
-      case 'short': return 'Терміновий';
-      case 'info': return 'Інформація';
-      default: return 'Стандартний';
-    }
+const CategoryBadge: React.FC<CategoryBadgeProps> = ({ urgency }) => {
+  const styles = {
+    emergency: 'bg-red-100 text-red-800 border-red-300',
+    short: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    info: 'bg-blue-100 text-blue-800 border-blue-300',
+    standard: 'bg-green-100 text-green-800 border-green-300'
   };
-
+  
+  const texts = {
+    emergency: 'Аварійний',
+    short: 'Терміновий',
+    info: 'Інформація',
+    standard: 'Стандартний'
+  };
+  
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${getUrgencyStyle()}`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${styles[urgency]}`}>
       <AlertTriangle className="w-4 h-4" />
-      <span className="text-sm font-medium">{getUrgencyText()}</span>
+      <span className="text-sm font-medium">{texts[urgency]}</span>
     </div>
   );
 };
 
-// Модальне вікно редагування довідників
-const ReferenceModal = ({ type, data, executors, onClose, onSave }) => {
-  const isEdit = !!data;
-  const [formData, setFormData] = useState(data || {});
+// ===========================================
+// Компонент панелі стану системи
+// ===========================================
+interface SystemStatusProps {
+  isConnected: boolean;
+  useFishSpeech: boolean;
+}
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSave(formData);
-  };
+const SystemStatus: React.FC<SystemStatusProps> = ({ isConnected, useFishSpeech }) => (
+  <div className="bg-white rounded-2xl shadow-md p-6">
+    <h3 className="font-semibold text-gray-800 mb-4">Статус системи</h3>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-gray-600">Fish Speech TTS</span>
+        <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-yellow-600'}`}>
+          <CheckCircle className="w-4 h-4" /> 
+          {isConnected ? 'Активний' : 'Fallback'}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-gray-600">Silero ASR</span>
+        <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>
+          <CheckCircle className="w-4 h-4" /> 
+          {isConnected ? 'Активний' : 'Вимкнено'}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-gray-600">Класифікатор</span>
+        <span className="flex items-center gap-1 text-green-600">
+          <CheckCircle className="w-4 h-4" /> Активний
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-gray-600">Бекенд</span>
+        <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-500'}`}>
+          {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+          {isConnected ? 'Підключено' : 'Офлайн'}
+        </span>
+      </div>
+    </div>
+  </div>
+);
 
-  const updateField = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+// ===========================================
+// Компонент швидкої статистики
+// ===========================================
+interface QuickStatsProps {
+  stats: Stats;
+}
 
+const QuickStats: React.FC<QuickStatsProps> = ({ stats }) => {
+  const aiResolvedPercent = stats.totalCalls > 0 
+    ? Math.round((stats.aiResolved / stats.totalCalls) * 100) 
+    : 0;
+  
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-bold">
-            {isEdit ? 'Редагування' : 'Новий запис'}: {
-              type === 'classifiers' ? 'Категорія' :
-              type === 'executors' ? 'Виконавець' : 'Алгоритм'
-            }
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-md p-6 text-white">
+      <h3 className="font-semibold mb-4">Сьогодні</h3>
+      <div className="space-y-4">
+        <div>
+          <p className="text-blue-200 text-sm">Оброблено дзвінків</p>
+          <p className="text-3xl font-bold">{stats.totalCalls}</p>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {type === 'classifiers' && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Категорія *</label>
-                  <input
-                    type="text"
-                    value={formData.problem || ''}
-                    onChange={(e) => updateField('problem', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Тип</label>
-                  <input
-                    type="text"
-                    value={formData.type || ''}
-                    onChange={(e) => updateField('type', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Підтип *</label>
-                  <input
-                    type="text"
-                    value={formData.subtype || ''}
-                    onChange={(e) => updateField('subtype', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Локація</label>
-                  <input
-                    type="text"
-                    value={formData.location || ''}
-                    onChange={(e) => updateField('location', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Шаблон відповіді *</label>
-                <textarea
-                  value={formData.response || ''}
-                  onChange={(e) => updateField('response', e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Виконавець</label>
-                  <select
-                    value={formData.executor_id || ''}
-                    onChange={(e) => {
-                      const exec = executors.find(ex => ex.id === e.target.value);
-                      updateField('executor_id', e.target.value);
-                      updateField('executor_name', exec?.name || '');
-                    }}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Оберіть виконавця...</option>
-                    {executors.map(ex => (
-                      <option key={ex.id} value={ex.id}>{ex.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Або введіть назву</label>
-                  <input
-                    type="text"
-                    value={formData.executor_name || ''}
-                    onChange={(e) => updateField('executor_name', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Назва виконавця"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Терміновість</label>
-                  <select
-                    value={formData.urgency || 'standard'}
-                    onChange={(e) => updateField('urgency', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="emergency">Аварійний</option>
-                    <option value="short">Терміновий</option>
-                    <option value="standard">Стандартний</option>
-                    <option value="info">Інформаційний</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Час відповіді (год)</label>
-                  <input
-                    type="number"
-                    value={formData.response_time || 24}
-                    onChange={(e) => updateField('response_time', parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова (через кому)</label>
-                <input
-                  type="text"
-                  value={(formData.keywords || []).join(', ')}
-                  onChange={(e) => updateField('keywords', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="сніг, розчистка, двір"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active !== false}
-                  onChange={(e) => updateField('is_active', e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <label htmlFor="is_active" className="text-sm text-gray-700">Активна категорія</label>
-              </div>
-            </>
-          )}
-
-          {type === 'executors' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Назва *</label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
-                  <input
-                    type="text"
-                    value={formData.phone || ''}
-                    onChange={(e) => updateField('phone', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email || ''}
-                    onChange={(e) => updateField('email', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Години роботи</label>
-                <input
-                  type="text"
-                  value={formData.work_hours || ''}
-                  onChange={(e) => updateField('work_hours', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="09:00-18:00 або 24/7"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
-                <textarea
-                  value={formData.description || ''}
-                  onChange={(e) => updateField('description', e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active !== false}
-                  onChange={(e) => updateField('is_active', e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <label htmlFor="is_active" className="text-sm text-gray-700">Активний виконавець</label>
-              </div>
-            </>
-          )}
-
-          {type === 'algorithms' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Назва *</label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
-                <textarea
-                  value={formData.description || ''}
-                  onChange={(e) => updateField('description', e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова для запуску (через кому)</label>
-                <input
-                  type="text"
-                  value={(formData.trigger_keywords || []).join(', ')}
-                  onChange={(e) => updateField('trigger_keywords', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="аварія, терміново, небезпека"
-                />
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_default"
-                    checked={formData.is_default || false}
-                    onChange={(e) => updateField('is_default', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <label htmlFor="is_default" className="text-sm text-gray-700">За замовчуванням</label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={formData.is_active !== false}
-                    onChange={(e) => updateField('is_active', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <label htmlFor="is_active" className="text-sm text-gray-700">Активний</label>
-                </div>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600">
-                  Кроки алгоритму можна редагувати через API або безпосередньо в файлі 
-                  <code className="bg-gray-200 px-1 mx-1 rounded">backend/data/algorithms.json</code>
-                </p>
-              </div>
-            </>
-          )}
-
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
-            >
-              Скасувати
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg"
-            >
-              <Save className="w-4 h-4" />
-              {isEdit ? 'Зберегти' : 'Створити'}
-            </button>
-          </div>
-        </form>
+        <div>
+          <p className="text-blue-200 text-sm">Автоматично вирішено</p>
+          <p className="text-3xl font-bold">{aiResolvedPercent}%</p>
+        </div>
       </div>
     </div>
   );
 };
 
-// Головний компонент
-const App = () => {
+// ===========================================
+// Головний компонент App
+// ===========================================
+const App: React.FC = () => {
   // Стани
-  const [activeView, setActiveView] = useState('dashboard');
-  const [callState, setCallState] = useState('idle');
+  const [activeView, setActiveView] = useState<string>('dashboard');
+  const [callState, setCallState] = useState<CallState>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [transcript, setTranscript] = useState('');
-  const [classification, setClassification] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [callHistory, setCallHistory] = useState([]);
+  const [classification, setClassification] = useState<ClassificationResult | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [useFishSpeech, setUseFishSpeech] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalCalls: 0,
     aiResolved: 0,
     escalated: 0,
     avgResponseTime: 0
   });
+  const [error, setError] = useState<string | null>(null);
 
   // Стани для довідників
-  const [executors, setExecutors] = useState([]);
-  const [classifiers, setClassifiers] = useState([]);
-  const [algorithms, setAlgorithms] = useState([]);
+  const [executors, setExecutors] = useState<Executor[]>([]);
+  const [classifiers, setClassifiers] = useState<ClassifierCategory[]>([]);
+  const [algorithms, setAlgorithms] = useState<ConversationAlgorithm[]>([]);
   const [refLoading, setRefLoading] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState<{ type: string; data: unknown } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [currentRefType, setCurrentRefType] = useState('classifiers');
 
   // Стани для голосового режиму
   const [isRecording, setIsRecording] = useState(false);
-  const [voiceTestMode, setVoiceTestMode] = useState(false);
   const [lastTranscript, setLastTranscript] = useState('');
 
-  const chatEndRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const wsRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const audioQueueRef = useRef([]);
+  // Refs
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<Array<{ text: string; callback?: () => void; useBackend: boolean }>>([]);
   const isPlayingRef = useRef(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ініціалізація AudioContext для відтворення Fish Speech
+  // Ініціалізація AudioContext
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     return () => {
@@ -567,425 +362,98 @@ const App = () => {
       try {
         const response = await fetch(`${BACKEND_URL}/api/health`);
         if (response.ok) {
+          const data: HealthResponse = await response.json();
           setIsConnected(true);
+          console.log('[Backend] Підключено:', data);
         } else {
           setIsConnected(false);
+          setError('Бекенд повернув помилку');
         }
-      } catch (error) {
+      } catch (err) {
         setIsConnected(false);
-        console.log('Backend not available, using fallback mode');
+        setError('Бекенд недоступний. Використовується fallback режим.');
+        console.log('[Backend] Недоступний, fallback режим');
       }
     };
     
     checkBackend();
-    const interval = setInterval(checkBackend, 10000);
+    const interval = setInterval(checkBackend, 30000);  // Перевірка кожні 30 секунд
     return () => clearInterval(interval);
   }, []);
 
-  // Завантаження довідників
-  const fetchReferences = useCallback(async () => {
-    if (!isConnected) return;
-    setRefLoading(true);
-    try {
-      const [execRes, classRes, algoRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/references/executors`),
-        fetch(`${BACKEND_URL}/api/references/classifiers`),
-        fetch(`${BACKEND_URL}/api/references/algorithms`)
-      ]);
-      
-      if (execRes.ok) {
-        const data = await execRes.json();
-        setExecutors(data.data || []);
-      }
-      if (classRes.ok) {
-        const data = await classRes.json();
-        setClassifiers(data.data || []);
-      }
-      if (algoRes.ok) {
-        const data = await algoRes.json();
-        setAlgorithms(data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching references:', error);
-    }
-    setRefLoading(false);
-  }, [isConnected]);
-
-  // Завантажити довідники при підключенні
-  useEffect(() => {
-    if (isConnected) {
-      fetchReferences();
-    }
-  }, [isConnected, fetchReferences]);
-
-  // CRUD операції для довідників
-  const createReference = async (type, data) => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/references/${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (response.ok) {
-        fetchReferences();
-        setShowAddModal(false);
-        // Перезавантажити класифікатор
-        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
-      }
-    } catch (error) {
-      console.error('Create error:', error);
-    }
-  };
-
-  const updateReference = async (type, id, data) => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/references/${type}/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (response.ok) {
-        fetchReferences();
-        setEditingItem(null);
-        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
-      }
-    } catch (error) {
-      console.error('Update error:', error);
-    }
-  };
-
-  const deleteReference = async (type, id) => {
-    if (!confirm('Видалити цей запис?')) return;
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/references/${type}/${id}`, {
-        method: 'DELETE'
-      });
-      if (response.ok) {
-        fetchReferences();
-        await fetch(`${BACKEND_URL}/api/references/reload`, { method: 'POST' });
-      }
-    } catch (error) {
-      console.error('Delete error:', error);
-    }
-  };
-
-  // === Голосовий режим з Backend Silero ASR або Web Speech API ===
-  const recognitionRef = useRef(null);
-  // mediaRecorderRef та audioChunksRef вже оголошені вище
-  const mediaStreamRef = useRef(null);
-  const recordingTimeoutRef = useRef(null);
-  const useBackendASR = isConnected; // Використовуємо бекенд якщо підключено
-  
-  // Ініціалізація Web Speech API (fallback)
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'uk-UA';
-      
-      recognitionRef.current.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
-          .join('');
-        setLastTranscript(transcript);
-        
-        // Якщо це фінальний результат
-        if (event.results[0].isFinal) {
-          processVoiceText(transcript);
-        }
-      };
-      
-      recognitionRef.current.onerror = (event) => {
-        console.log('[WebSpeech] Error:', event.error);
-        setIsRecording(false);
-        // При помилці network - переключаємося на backend ASR
-        if (event.error === 'network' && isConnected) {
-          console.log('[WebSpeech] Network error, switching to backend ASR');
-          startBackendRecording();
-          return;
-        }
-        if (event.error === 'no-speech') {
-          setLastTranscript('[Не почуто голос - спробуйте ще]');
-          setTimeout(() => {
-            if (callState !== 'idle' && callState !== 'ended') {
-              startListening();
-            }
-          }, 1000);
-        } else if (event.error === 'aborted') {
-          // Нормально при рестарті
-        } else if (event.error === 'not-allowed') {
-          setCallState('idle');
-          alert('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
-        }
-      };
-      
-      recognitionRef.current.onend = () => {
-        console.log('[WebSpeech] Ended');
-        setIsRecording(false);
-      };
-    }
-  }, [callState, isConnected]);
-  
-  // Backend ASR через MediaRecorder
-  const startBackendRecording = async () => {
-    console.log('[BackendASR] Starting recording...');
-    try {
-      // Отримуємо доступ до мікрофона
-      if (!mediaStreamRef.current) {
-        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ 
-          audio: { 
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true
-          } 
-        });
-      }
-      
-      audioChunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-      mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType });
-      
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      
-      mediaRecorderRef.current.onstop = async () => {
-        console.log('[BackendASR] Recording stopped, sending to backend...');
-        setLastTranscript('[Обробка голосу...]');
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        
-        try {
-          const formData = new FormData();
-          // Бекенд очікує поле 'audio'
-          formData.append('audio', audioBlob, 'recording.webm');
-          
-          const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('[BackendASR] Transcription result:', data);
-            // Бекенд повертає 'transcript'
-            const transcribedText = data.transcript || data.text || '';
-            if (transcribedText.trim()) {
-              setLastTranscript(transcribedText);
-              processVoiceText(transcribedText);
-            } else {
-              setLastTranscript('[Не вдалось розпізнати]');
-              // Продовжуємо слухати
-              setTimeout(() => {
-                if (callState !== 'idle' && callState !== 'ended') {
-                  startListening();
-                }
-              }, 1000);
-            }
-          } else {
-            console.error('[BackendASR] Transcription failed:', response.status);
-            setLastTranscript('[Помилка розпізнавання]');
-          }
-        } catch (error) {
-          console.error('[BackendASR] Error:', error);
-          setLastTranscript('[Помилка з\'єднання]');
-        }
-        
-        setIsRecording(false);
-      };
-      
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      setCallState('processing');
-      setLastTranscript('[Говоріть...]');
-      
-      // Автоматична зупинка через 10 секунд
-      recordingTimeoutRef.current = setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          console.log('[BackendASR] Auto-stopping after 10s');
-          mediaRecorderRef.current.stop();
-        }
-      }, 10000);
-      
-    } catch (error) {
-      console.error('[BackendASR] Error starting recording:', error);
-      setIsRecording(false);
-      if (error.name === 'NotAllowedError') {
-        alert('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
-      }
-    }
-  };
-  
-  const stopBackendRecording = () => {
-    if (recordingTimeoutRef.current) {
-      clearTimeout(recordingTimeoutRef.current);
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      console.log('[BackendASR] Stopping recording...');
-      mediaRecorderRef.current.stop();
-    }
-  };
-  
-  // Почати голосовий діалог
-  const startVoiceCall = async () => {
-    if (!recognitionRef.current) {
-      alert('Ваш браузер не підтримує розпізнавання голосу. Використовуйте Chrome.');
-      return;
-    }
-    
-    // Починаємо симуляцію
-    setCallState('active');
-    setChatMessages([]);
-    setClassification(null);
-    setLastTranscript('');
-    
-    // Привітання (скорочене)
-    const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію. Чим можу допомогти?';
-    const greetingMsg = {
-      id: Date.now(),
-      text: greeting,
-      isUser: false,
-      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatMessages([greetingMsg]);
-    
-    // Озвучуємо привітання, потім слухаємо
-    setCallState('responding');
-    console.log('[Voice] Starting greeting TTS...');
-    synthesizeSpeech(greeting, () => {
-      console.log('[Voice] Greeting TTS finished, starting listening...');
-      // Після привітання починаємо слухати з невеликою затримкою
-      setCallState('processing');
-      setTimeout(() => {
-        try {
-          console.log('[Voice] Calling startListening...');
-          startListening();
-        } catch (e) {
-          console.error('[Voice] startListening error:', e);
-        }
-      }, 300);
-    });
-  };
-  
-  // Почати слухати (використовує Backend ASR якщо підключено, інакше Web Speech API)
-  const startListening = () => {
-    console.log('[Voice] startListening called, useBackendASR:', useBackendASR);
-    
-    if (useBackendASR) {
-      // Використовуємо бекенд Silero ASR
-      startBackendRecording();
-    } else if (recognitionRef.current) {
-      // Fallback на Web Speech API
-      try {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) {
-          // ігноруємо
-        }
-        
-        setTimeout(() => {
-          setIsRecording(true);
-          setCallState('processing');
-          console.log('[WebSpeech] Starting recognition...');
-          recognitionRef.current.start();
-        }, 100);
-      } catch (e) {
-        console.error('[WebSpeech] Error starting recognition:', e);
-      }
-    } else {
-      console.error('[Voice] No ASR method available');
-    }
-  };
-  
-  // Зупинити слухання
-  const stopListening = () => {
-    if (useBackendASR) {
-      stopBackendRecording();
-    } else if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-  
-  // Обробка розпізнаного тексту
-  const processVoiceText = async (userText) => {
-    if (!userText.trim()) {
-      setCallState('idle');
-      return;
-    }
-    
-    // Додаємо повідомлення користувача
-    const userMsg = {
-      id: Date.now(),
-      text: userText,
-      isUser: true,
-      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatMessages(prev => [...prev, userMsg]);
-    
-    setCallState('processing');
-    
-    try {
-      // Класифікація
-      const classifyRes = await fetch(`${BACKEND_URL}/api/classify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: userText })
-      });
-      
-      if (classifyRes.ok) {
-        const classifyData = await classifyRes.json();
-        const result = classifyData.classification;
-        setClassification(result);
-        
-        // Відповідь
-        const responseText = result.response || 'Дякую за ваше звернення.';
-        const agentMsg = {
-          id: Date.now() + 1,
-          text: responseText,
-          isUser: false,
-          timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-        };
-        setChatMessages(prev => [...prev, agentMsg]);
-        
-        // Озвучуємо відповідь
-        setCallState('responding');
-        await synthesizeSpeech(responseText, async () => {
-          // Запитуємо чи потрібна ще допомога
-          const followUp = 'Чи можу я ще чимось допомогти?';
-          const followUpMsg = {
-            id: Date.now() + 2,
-            text: followUp,
-            isUser: false,
-            timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-          };
-          setChatMessages(prev => [...prev, followUpMsg]);
-          
-          await synthesizeSpeech(followUp, () => {
-            // Знову слухаємо
-            startListening();
-          });
-        });
-      }
-    } catch (error) {
-      console.error('Processing error:', error);
-      setCallState('idle');
-    }
-  };
-
-  // Прокрутка чату донизу
+  // Прокрутка чату донизу при новому повідомленні
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Відтворення WAV аудіо з байтів (Fish Speech) з чергою
-  const playAudioBytes = useCallback((audioBytes) => {
-    return new Promise(async (resolve) => {
+  // Оновлення статистики при завершенні дзвінка
+  useEffect(() => {
+    if (callState === 'ended') {
+      setStats(prev => ({
+        totalCalls: prev.totalCalls + 1,
+        avgResponseTime: Math.round((prev.avgResponseTime * prev.totalCalls + 3.5) / (prev.totalCalls + 1) * 10) / 10
+      }));
+    }
+  }, [callState]);
+
+  // Функція класифікації запиту (локальна)
+  const classifyQueryLocal = useCallback((query: string): ClassificationResult => {
+    const lowerQuery = query.toLowerCase();
+    let bestMatch: ClassifierCategory | null = null;
+    let highestScore = 0;
+
+    CLASSIFIER_DATA.forEach(item => {
+      let score = 0;
+      item.keywords?.forEach(keyword => {
+        if (lowerQuery.includes(keyword)) {
+          score += 3;
+        }
+      });
+      
+      if (item.subtype.toLowerCase().split(' ').some(word => lowerQuery.includes(word))) {
+        score += 2;
+      }
+      
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = item;
+      }
+    });
+
+    if (bestMatch && highestScore > 0) {
+      return {
+        id: bestMatch.id,
+        problem: bestMatch.problem,
+        type: bestMatch.type || '',
+        subtype: bestMatch.subtype,
+        location: bestMatch.location,
+        response: bestMatch.response,
+        executor: bestMatch.executor,
+        urgency: bestMatch.urgency,
+        response_time: bestMatch.responseTime,
+        confidence: Math.min(0.95, 0.6 + highestScore * 0.1),
+        needs_operator: false
+      };
+    }
+
+    return {
+      id: '0',
+      problem: 'Загальне питання',
+      type: 'Консультація',
+      subtype: 'потребує оператора',
+      location: undefined,
+      response: 'Вибачте, я не зміг точно визначити тип вашого звернення. Зачекайте, будь ласка, я переключу вас на оператора.',
+      executor: 'Оператор контактного центру',
+      urgency: 'standard',
+      response_time: 0,
+      confidence: 0.3,
+      needs_operator: true
+    };
+  }, []);
+
+  // Відтворення WAV аудіо з байтів
+  const playAudioBytes = useCallback(async (audioBytes: ArrayBuffer | Blob): Promise<void> => {
+    return new Promise((resolve) => {
       if (!audioContextRef.current || !isSpeakerOn) {
         resolve();
         return;
@@ -993,21 +461,31 @@ const App = () => {
       
       try {
         setIsSpeaking(true);
-        const arrayBuffer = audioBytes instanceof ArrayBuffer ? audioBytes : await audioBytes.arrayBuffer();
-        const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
         
-        const source = audioContextRef.current.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContextRef.current.destination);
-        
-        source.onended = () => {
+        audioBytes.arrayBuffer().then(arrayBuffer => {
+          audioContextRef.current?.decodeAudioData(arrayBuffer).then(audioBuffer => {
+            const source = audioContextRef.current!.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContextRef.current!.destination);
+            
+            source.onended = () => {
+              setIsSpeaking(false);
+              resolve();
+            };
+            
+            source.start();
+          }).catch(err => {
+            console.error('Декодування аудіо не вдалося:', err);
+            setIsSpeaking(false);
+            resolve();
+          });
+        }).catch(err => {
+          console.error('Помилка конвертації в arrayBuffer:', err);
           setIsSpeaking(false);
           resolve();
-        };
-        
-        source.start();
+        });
       } catch (error) {
-        console.error('Error playing audio:', error);
+        console.error('Помилка відтворення аудіо:', error);
         setIsSpeaking(false);
         resolve();
       }
@@ -1015,7 +493,7 @@ const App = () => {
   }, [isSpeakerOn]);
 
   // Fallback: Web Speech API TTS
-  const speakWithWebSpeech = useCallback((text, callback) => {
+  const speakWithWebSpeech = useCallback((text: string, callback?: () => void): void => {
     if (!('speechSynthesis' in window) || !isSpeakerOn) {
       if (callback) setTimeout(callback, 1000);
       return;
@@ -1053,12 +531,11 @@ const App = () => {
   }, [isSpeakerOn]);
 
   // Обробник черги аудіо
-  const processAudioQueue = useCallback(async () => {
+  const processAudioQueue = useCallback(async (): Promise<void> => {
     if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
     
     isPlayingRef.current = true;
-    const { text, callback, useBackend } = audioQueueRef.current.shift();
-    console.log('[Audio Queue] Processing:', text.substring(0, 30) + '...');
+    const { text, callback, useBackend } = audioQueueRef.current.shift()!;
     
     try {
       if (useBackend && isConnected && useFishSpeech) {
@@ -1074,23 +551,21 @@ const App = () => {
             const audioBlob = await response.blob();
             await playAudioBytes(audioBlob);
           } else {
-            console.log('[Audio Queue] Backend TTS failed, using Web Speech');
+            console.log('[Audio] TTS бекенд недоступний, використовую Web Speech');
             await new Promise(resolve => speakWithWebSpeech(text, resolve));
           }
         } catch (error) {
-          console.error('[Audio Queue] TTS error:', error);
+          console.error('[Audio] Помилка TTS:', error);
           await new Promise(resolve => speakWithWebSpeech(text, resolve));
         }
       } else {
-        console.log('[Audio Queue] Using Web Speech API');
         await new Promise(resolve => speakWithWebSpeech(text, resolve));
       }
     } catch (error) {
-      console.error('[Audio Queue] Unexpected error:', error);
+      console.error('[Audio] Неочікувана помилка:', error);
       setIsSpeaking(false);
     }
     
-    console.log('[Audio Queue] Finished, calling callback:', !!callback);
     isPlayingRef.current = false;
     setIsSpeaking(false);
     
@@ -1098,53 +573,397 @@ const App = () => {
       try {
         callback();
       } catch (e) {
-        console.error('[Audio Queue] Callback error:', e);
+        console.error('[Audio] Помилка callback:', e);
       }
     }
     
-    // Обробити наступний елемент черги
     setTimeout(() => processAudioQueue(), 50);
   }, [isConnected, useFishSpeech, playAudioBytes, speakWithWebSpeech]);
 
   // Синтез мовлення через Fish Speech API з чергою
-  const synthesizeSpeech = useCallback(async (text, callback) => {
+  const synthesizeSpeech = useCallback((text: string, callback?: () => void): void => {
     audioQueueRef.current.push({ text, callback, useBackend: true });
     processAudioQueue();
   }, [processAudioQueue]);
 
-  // Функція класифікації запиту (локальна)
-  const classifyQueryLocal = (query) => {
-    const lowerQuery = query.toLowerCase();
-    let bestMatch = null;
-    let highestScore = 0;
-
-    CLASSIFIER_DATA.forEach(item => {
-      let score = 0;
-      item.keywords.forEach(keyword => {
-        if (lowerQuery.includes(keyword)) {
-          score += 3;
+  // Ініціалізація Web Speech API
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'uk-UA';
+      
+      recognitionRef.current.onresult = (event) => {
+        const result = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setLastTranscript(result);
+        
+        if (event.results[0].isFinal) {
+          processVoiceText(result);
         }
-      });
+      };
       
-      if (item.subtype.toLowerCase().split(' ').some(word => lowerQuery.includes(word))) {
-        score += 2;
+      recognitionRef.current.onerror = (event) => {
+        console.log('[WebSpeech] Помилка:', event.error);
+        setIsRecording(false);
+        
+        if (event.error === 'network' && isConnected) {
+          console.log('[WebSpeech] Помилка мережі, перехід на бекенд ASR');
+          startBackendRecording();
+          return;
+        }
+        
+        if (event.error === 'no-speech') {
+          setLastTranscript('[Не почуто голос - спробуйте ще]');
+          setTimeout(() => {
+            if (callState !== 'idle' && callState !== 'ended') {
+              startListening();
+            }
+          }, 1000);
+        } else if (event.error === 'aborted') {
+          // Нормально при рестарті
+        } else if (event.error === 'not-allowed') {
+          setCallState('idle');
+          setError('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
+        }
+      };
+      
+      recognitionRef.current.onend = () => {
+        console.log('[WebSpeech] Закінчено');
+        setIsRecording(false);
+      };
+    }
+  }, [callState, isConnected]);
+
+  // Backend ASR через MediaRecorder
+  const startBackendRecording = useCallback(async (): Promise<void> => {
+    console.log('[BackendASR] Початок запису...');
+    try {
+      if (!mediaStreamRef.current) {
+        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true
+          } 
+        });
       }
       
-      if (score > highestScore) {
-        highestScore = score;
-        bestMatch = item;
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType });
+      
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorderRef.current.onstop = async () => {
+        console.log('[BackendASR] Запис закінчено, відправка на бекенд...');
+        setLastTranscript('[Обробка голосу...]');
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+          
+          const response = await fetch(`${BACKEND_URL}/api/transcribe`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('[BackendASR] Результат:', data);
+            const transcribedText = data.transcript || data.text || '';
+            
+            if (transcribedText.trim()) {
+              setLastTranscript(transcribedText);
+              processVoiceText(transcribedText);
+            } else {
+              setLastTranscript('[Не вдалось розпізнати]');
+              setTimeout(() => {
+                if (callState !== 'idle' && callState !== 'ended') {
+                  startListening();
+                }
+              }, 1000);
+            }
+          } else {
+            console.error('[BackendASR] Помилка транскрибування:', response.status);
+            setLastTranscript('[Помилка розпізнавання]');
+            setError('Помилка розпізнавання голосу на сервері');
+          }
+        } catch (error) {
+          console.error('[BackendASR] Помилка:', error);
+          setLastTranscript('[Помилка з\'єднання]');
+          setError('Помилка з\'єднання з сервером розпізнавання');
+        }
+        
+        setIsRecording(false);
+      };
+      
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      setCallState('processing');
+      setLastTranscript('[Говоріть...]');
+      
+      // Автоматична зупинка через 10 секунд
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          console.log('[BackendASR] Автозупинка через 10с');
+          mediaRecorderRef.current.stop();
+        }
+      }, 10000);
+      
+    } catch (error) {
+      console.error('[BackendASR] Помилка початку запису:', error);
+      setIsRecording(false);
+      if ((error as Error).name === 'NotAllowedError') {
+        setError('Доступ до мікрофона заборонено. Дозвольте доступ у налаштуваннях браузера.');
       }
-    });
+    }
+  }, [callState]);
 
-    return highestScore > 0 ? { ...bestMatch, confidence: Math.min(0.95, 0.6 + highestScore * 0.1) } : null;
-  };
+  const stopBackendRecording = useCallback((): void => {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('[BackendASR] Зупинка запису...');
+      mediaRecorderRef.current.stop();
+    }
+  }, []);
 
-  // Класифікація через бекенд
-  const classifyQuery = useCallback(async (query) => {
-    if (!isConnected) {
-      return classifyQueryLocal(query);
+  // Обробка розпізнаного тексту
+  const processVoiceText = useCallback(async (userText: string): Promise<void> => {
+    if (!userText.trim()) {
+      setCallState('idle');
+      return;
     }
     
+    // Додаємо повідомлення користувача
+    const userMsg: ChatMessage = {
+      id: Date.now(),
+      text: userText,
+      isUser: true,
+      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatMessages(prev => [...prev, userMsg]);
+    
+    setCallState('processing');
+    setError(null);
+    
+    try {
+      let result: ClassificationResult;
+      
+      if (isConnected) {
+        const classifyRes = await fetch(`${BACKEND_URL}/api/classify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: userText })
+        });
+        
+        if (classifyRes.ok) {
+          const classifyData = await classifyRes.json();
+          result = classifyData.classification;
+        } else {
+          throw new Error('Помилка класифікації');
+        }
+      } else {
+        result = classifyQueryLocal(userText);
+      }
+      
+      setClassification(result);
+      
+      const responseText = result.response || 'Дякую за ваше звернення.';
+      const agentMsg: ChatMessage = {
+        id: Date.now() + 1,
+        text: responseText,
+        isUser: false,
+        timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages(prev => [...prev, agentMsg]);
+      
+      // Озвучуємо відповідь
+      setCallState('responding');
+      await new Promise<void>(resolve => {
+        synthesizeSpeech(responseText, () => {
+          const followUp = 'Чи можу я ще чимось допомогти?';
+          const followUpMsg: ChatMessage = {
+            id: Date.now() + 2,
+            text: followUp,
+            isUser: false,
+            timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+          };
+          setChatMessages(prev => [...prev, followUpMsg]);
+          
+          synthesizeSpeech(followUp, () => {
+            resolve();
+          });
+        });
+      });
+      
+      startListening();
+    } catch (error) {
+      console.error('Помилка обробки:', error);
+      setError('Сталася помилка при обробці запиту. Спробуйте ще раз.');
+      setCallState('active');
+    }
+  }, [isConnected, classifyQueryLocal, synthesizeSpeech]);
+
+  // Почати голосовий діалог
+  const startVoiceCall = useCallback(async (): Promise<void> => {
+    if (!recognitionRef.current) {
+      setError('Ваш браузер не підтримує розпізнавання голосу. Використовуйте Chrome.');
+      return;
+    }
+    
+    setCallState('active');
+    setChatMessages([]);
+    setClassification(null);
+    setLastTranscript('');
+    setError(null);
+    
+    const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію. Чим можу допомогти?';
+    const greetingMsg: ChatMessage = {
+      id: Date.now(),
+      text: greeting,
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+    };
+    setChatMessages([greetingMsg]);
+    
+    setCallState('responding');
+    console.log('[Voice] Початок привітання TTS...');
+    
+    await new Promise<void>(resolve => {
+      synthesizeSpeech(greeting, () => {
+        console.log('[Voice] Привітання закінчено, початок прослуховування...');
+        setCallState('processing');
+        setTimeout(() => {
+          try {
+            console.log('[Voice] Виклик startListening...');
+            startListening();
+            resolve();
+          } catch (e) {
+            console.error('[Voice] Помилка startListening:', e);
+            resolve();
+          }
+        }, 300);
+      });
+    });
+  }, [synthesizeSpeech]);
+
+  // Почати прослуховування
+  const startListening = useCallback((): void => {
+    console.log('[Voice] startListening, useBackendASR:', isConnected);
+    
+    if (isConnected) {
+      startBackendRecording();
+    } else if (recognitionRef.current) {
+      try {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // Ігноруємо
+        }
+        
+        setTimeout(() => {
+          setIsRecording(true);
+          setCallState('processing');
+          console.log('[WebSpeech] Початок розпізнавання...');
+          recognitionRef.current?.start();
+        }, 100);
+      } catch (e) {
+        console.error('[WebSpeech] Помилка початку розпізнавання:', e);
+      }
+    } else {
+      console.error('[Voice] Немає методу ASR');
+      setError('Розпізнавання голосу недоступне');
+    }
+  }, [isConnected, startBackendRecording]);
+
+  // Зупинити прослуховування
+  const stopListening = useCallback((): void => {
+    if (isConnected) {
+      stopBackendRecording();
+    } else if (recognitionRef.current && isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    }
+  }, [isConnected, isRecording, stopBackendRecording]);
+
+  // Симуляція вхідного дзвінка
+  const simulateIncomingCall = useCallback(async (): Promise<void> => {
+    setCallState('ringing');
+    setChatMessages([]);
+    setTranscript('');
+    setClassification(null);
+    setError(null);
+    
+    setTimeout(async () => {
+      setCallState('active');
+      
+      const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію контактного центру. Чим можу вам допомогти?';
+      
+      const greetingMsg: ChatMessage = {
+        id: 1,
+        text: greeting,
+        isUser: false,
+        timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages([greetingMsg]);
+      
+      await new Promise<void>(resolve => {
+        synthesizeSpeech(greeting, () => {
+          setTimeout(() => {
+            const randomQuery = SAMPLE_QUERIES[Math.floor(Math.random() * SAMPLE_QUERIES.length)];
+            processUserQuery(randomQuery);
+            resolve();
+          }, 1000);
+        });
+      });
+    }, 1500);
+  }, [synthesizeSpeech]);
+
+  // Обробка запиту користувача
+  const processUserQuery = useCallback(async (query: string): Promise<void> => {
+    setCallState('processing');
+    setTranscript(query);
+    
+    await new Promise<void>(resolve => {
+      synthesizeSpeech(query, () => {
+        const userMsg: ChatMessage = {
+          id: Date.now(),
+          text: query,
+          isUser: true,
+          timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+        };
+        setChatMessages(prev => [...prev, userMsg]);
+
+        setTimeout(async () => {
+          const result = isConnected 
+            ? await fetchClassification(query)
+            : classifyQueryLocal(query);
+          setClassification(result);
+
+          setTimeout(() => {
+            generateResponse(result, query);
+            resolve();
+          }, 800);
+        }, 1000);
+      });
+    });
+  }, [isConnected, classifyQueryLocal, synthesizeSpeech]);
+
+  // Отримання класифікації з бекенду
+  const fetchClassification = async (query: string): Promise<ClassificationResult> => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/classify`, {
         method: 'POST',
@@ -1157,146 +976,86 @@ const App = () => {
         return data.classification;
       }
     } catch (error) {
-      console.error('Classification error:', error);
+      console.error('Помилка класифікації:', error);
     }
-    
     return classifyQueryLocal(query);
-  }, [isConnected]);
-
-  // Симуляція вхідного дзвінка
-  const simulateIncomingCall = async () => {
-    setCallState('ringing');
-    setChatMessages([]);
-    setTranscript('');
-    setClassification(null);
-
-    // Підняття через 1.5 секунди
-    setTimeout(async () => {
-      setCallState('active');
-      
-      // Привітання від агента
-      const greeting = 'Доброго дня! Ви зателефонували на гарячу лінію контактного центру. Чим можу вам допомогти?';
-      
-      const greetingMsg = {
-        id: 1,
-        text: greeting,
-        isUser: false,
-        timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatMessages([greetingMsg]);
-      
-      // Озвучуємо привітання через Fish Speech або Web Speech
-      await synthesizeSpeech(greeting, () => {
-        // Після привітання - запит громадянина
-        setTimeout(() => {
-          const randomQuery = SAMPLE_QUERIES[Math.floor(Math.random() * SAMPLE_QUERIES.length)];
-          processUserQuery(randomQuery);
-        }, 1000);
-      });
-    }, 1500);
-  };
-
-  // Обробка запиту користувача
-  const processUserQuery = async (query) => {
-    setCallState('processing');
-    setTranscript(query);
-
-    // Озвучуємо запит громадянина (імітація того, що ми чуємо)
-    await synthesizeSpeech(query, async () => {
-      // Додаємо повідомлення користувача
-      const userMsg = {
-        id: Date.now(),
-        text: query,
-        isUser: true,
-        timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatMessages(prev => [...prev, userMsg]);
-
-      // Класифікація
-      setTimeout(async () => {
-        const result = await classifyQuery(query);
-        setClassification(result);
-
-        // Генерація відповіді
-        setTimeout(() => {
-          generateResponse(result, query);
-        }, 800);
-      }, 1000);
-    });
   };
 
   // Генерація відповіді
-  const generateResponse = async (classification, originalQuery) => {
+  const generateResponse = useCallback(async (classification: ClassificationResult, originalQuery: string): Promise<void> => {
     setCallState('responding');
-
-    let response;
+    
+    let response: string;
     let needsEscalation = false;
-
+    
     if (classification && classification.confidence > 0.7) {
       response = classification.response;
     } else {
       response = 'Вибачте, я не зміг точно визначити тип вашого звернення. Зачекайте, я переключу вас на оператора.';
       needsEscalation = true;
     }
-
-    // Додаємо відповідь агента
-    const agentMsg = {
+    
+    const agentMsg: ChatMessage = {
       id: Date.now(),
       text: response,
       isUser: false,
       timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
     };
     setChatMessages(prev => [...prev, agentMsg]);
-
-    // Озвучуємо відповідь
-    await synthesizeSpeech(response, () => {
-      // Оновлення статистики
-      setStats(prev => ({
-        totalCalls: prev.totalCalls + 1,
-        aiResolved: needsEscalation ? prev.aiResolved : prev.aiResolved + 1,
-        escalated: needsEscalation ? prev.escalated + 1 : prev.escalated,
-        avgResponseTime: Math.round((prev.avgResponseTime * prev.totalCalls + 3.5) / (prev.totalCalls + 1) * 10) / 10
-      }));
-
-      // Додаємо в історію
-      const historyRecord = {
-        id: Date.now(),
-        timestamp: new Date().toLocaleString('uk-UA'),
-        query: originalQuery,
-        category: classification?.subtype || 'Не визначено',
-        status: needsEscalation ? 'escalated' : 'resolved',
-        executor: classification?.executor || 'Оператор'
-      };
-      setCallHistory(prev => [historyRecord, ...prev.slice(0, 9)]);
-
-      // Завершуючі слова
-      setTimeout(async () => {
-        let closingMsg;
-        if (needsEscalation) {
-          closingMsg = {
-            id: Date.now() + 1,
-            text: 'Переключаю на оператора. Будь ласка, залишайтесь на лінії.',
-            isUser: false,
-            timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-          };
-        } else {
-          closingMsg = {
-            id: Date.now() + 1,
-            text: 'Чи можу я ще чимось допомогти?',
-            isUser: false,
-            timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
-          };
-        }
-        setChatMessages(prev => [...prev, closingMsg]);
-        await synthesizeSpeech(closingMsg.text, () => {
-          setCallState('active');
-        });
-      }, 500);
+    
+    await new Promise<void>(resolve => {
+      synthesizeSpeech(response, () => {
+        setStats(prev => ({
+          totalCalls: prev.totalCalls + 1,
+          aiResolved: needsEscalation ? prev.aiResolved : prev.aiResolved + 1,
+          escalated: needsEscalation ? prev.escalated + 1 : prev.escalated,
+          avgResponseTime: Math.round((prev.avgResponseTime * prev.totalCalls + 3.5) / (prev.totalCalls + 1) * 10) / 10
+        }));
+        
+        const historyRecord: CallRecord = {
+          id: Date.now().toString(),
+          timestamp: new Date().toLocaleString('uk-UA'),
+          query: originalQuery,
+          category: classification?.subtype || 'Не визначено',
+          status: needsEscalation ? 'escalated' : 'resolved',
+          executor: classification?.executor || 'Оператор'
+        };
+        setCallHistory(prev => [historyRecord, ...prev.slice(0, 9)]);
+        
+        setTimeout(async () => {
+          let closingMsg: ChatMessage;
+          if (needsEscalation) {
+            closingMsg = {
+              id: Date.now() + 1,
+              text: 'Переключаю на оператора. Будь ласка, залишайтесь на лінії.',
+              isUser: false,
+              timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+            };
+          } else {
+            closingMsg = {
+              id: Date.now() + 1,
+              text: 'Чи можу я ще чимось допомогти?',
+              isUser: false,
+              timestamp: new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })
+            };
+          }
+          setChatMessages(prev => [...prev, closingMsg]);
+          
+          await new Promise<void>(res => {
+            synthesizeSpeech(closingMsg.text, () => {
+              setCallState('active');
+              res();
+            });
+          });
+        }, 500);
+        
+        resolve();
+      });
     });
-  };
+  }, [synthesizeSpeech]);
 
   // Завершення дзвінка
-  const endCall = () => {
+  const endCall = useCallback((): void => {
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
     setCallState('ended');
@@ -1310,8 +1069,9 @@ const App = () => {
       setCallState('idle');
       setTranscript('');
       setClassification(null);
+      setError(null);
     }, 1500);
-  };
+  }, []);
 
   // Відсоток AI-вирішених
   const aiResolvedPercent = stats.totalCalls > 0 
@@ -1351,6 +1111,22 @@ const App = () => {
           </div>
         </div>
       </header>
+
+      {/* Повідомлення про помилку */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 py-2">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <span className="text-red-700">{error}</span>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Навігація */}
@@ -1466,12 +1242,7 @@ const App = () => {
                     ) : (
                       <>
                         {chatMessages.map(msg => (
-                          <ChatMessage
-                            key={msg.id}
-                            message={msg.text}
-                            isUser={msg.isUser}
-                            timestamp={msg.timestamp}
-                          />
+                          <ChatMessageComponent key={msg.id} message={msg} />
                         ))}
                         <div ref={chatEndRef} />
                       </>
@@ -1487,7 +1258,7 @@ const App = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
-                          <span className="text-gray-500">Категорія:</span>
+                          <span className="text-gray-500">Категория:</span>
                           <p className="font-medium">{classification.problem}</p>
                         </div>
                         <div>
@@ -1500,7 +1271,7 @@ const App = () => {
                         </div>
                         <div>
                           <span className="text-gray-500">Термін:</span>
-                          <p className="font-medium">{classification.responseTime || classification.response_time} год.</p>
+                          <p className="font-medium">{classification.response_time} год.</p>
                         </div>
                         <div className="col-span-2">
                           <span className="text-gray-500">Впевненість:</span>
@@ -1596,7 +1367,7 @@ const App = () => {
                         </div>
                         <p className="text-gray-800 mb-2">{call.query}</p>
                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <span>Категорія: {call.category}</span>
+                          <span>Категория: {call.category}</span>
                         </div>
                       </div>
                     ))}
@@ -1646,217 +1417,19 @@ const App = () => {
               <div className="bg-white rounded-2xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-800">Довідники</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={fetchReferences}
-                      disabled={refLoading}
-                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${refLoading ? 'animate-spin' : ''}`} />
-                      Оновити
-                    </button>
-                    <button
-                      onClick={() => { setShowAddModal(true); setEditingItem(null); }}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Додати
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Додати
+                  </button>
                 </div>
 
-                {/* Підменю довідників */}
-                <div className="flex gap-2 mb-4 border-b pb-4">
-                  {[
-                    { id: 'classifiers', icon: ListTree, label: 'Класифікатор', count: classifiers.length },
-                    { id: 'executors', icon: Users, label: 'Виконавці', count: executors.length },
-                    { id: 'algorithms', icon: MessageCircle, label: 'Алгоритми', count: algorithms.length }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setCurrentRefType(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
-                        currentRefType === tab.id
-                          ? 'bg-blue-100 text-blue-700 font-medium'
-                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      <tab.icon className="w-4 h-4" />
-                      {tab.label}
-                      <span className="bg-white px-2 py-0.5 rounded-full text-xs">{tab.count}</span>
-                    </button>
-                  ))}
+                <div className="text-center py-12 text-gray-400">
+                  <Database className="w-12 h-12 mx-auto mb-3" />
+                  <p>Підключіться до бекенду для роботи з довідниками</p>
                 </div>
-
-                {!isConnected ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <WifiOff className="w-12 h-12 mx-auto mb-3" />
-                    <p>Підключіться до бекенду для роботи з довідниками</p>
-                  </div>
-                ) : refLoading ? (
-                  <div className="text-center py-12">
-                    <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin text-blue-500" />
-                    <p className="text-gray-500">Завантаження...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Таблиця класифікатора */}
-                    {currentRefType === 'classifiers' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Категорія</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Підтип</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Виконавець</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Термін</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {classifiers.map(item => (
-                              <tr key={item.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">{item.problem}</td>
-                                <td className="px-4 py-3">{item.subtype}</td>
-                                <td className="px-4 py-3">{item.executor_name || item.executor}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs ${
-                                    item.urgency === 'emergency' ? 'bg-red-100 text-red-700' :
-                                    item.urgency === 'short' ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-green-100 text-green-700'
-                                  }`}>
-                                    {item.response_time} год
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => setEditingItem({ type: 'classifiers', data: item })}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteReference('classifiers', item.id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {/* Таблиця виконавців */}
-                    {currentRefType === 'executors' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Назва</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Телефон</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Години роботи</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Статус</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {executors.map(item => (
-                              <tr key={item.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium">{item.name}</td>
-                                <td className="px-4 py-3">{item.phone || '-'}</td>
-                                <td className="px-4 py-3">{item.work_hours || '-'}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs ${
-                                    item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    {item.is_active ? 'Активний' : 'Неактивний'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => setEditingItem({ type: 'executors', data: item })}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteReference('executors', item.id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {/* Таблиця алгоритмів */}
-                    {currentRefType === 'algorithms' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Назва</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Опис</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Кроків</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Статус</th>
-                              <th className="px-4 py-3 text-left font-medium text-gray-600">Дії</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {algorithms.map(item => (
-                              <tr key={item.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 font-medium">
-                                  {item.name}
-                                  {item.is_default && (
-                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                                      За замовчуванням
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 text-gray-500">{item.description || '-'}</td>
-                                <td className="px-4 py-3">{item.steps?.length || 0}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`px-2 py-1 rounded text-xs ${
-                                    item.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    {item.is_active ? 'Активний' : 'Неактивний'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => setEditingItem({ type: 'algorithms', data: item })}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteReference('algorithms', item.id)}
-                                      className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             )}
 
@@ -1921,7 +1494,7 @@ const App = () => {
                       <p>pip install fish-speech</p>
                       <p></p>
                       <p># Запуск сервера</p>
-                      <p>python main.py</p>
+                      <p>python main_fixed.py</p>
                     </div>
                     <p className="text-sm text-gray-500 mt-3">
                       Для роботи Fish Speech потрібна відеокарта NVIDIA з CUDA.
@@ -1934,54 +1507,8 @@ const App = () => {
 
           {/* Бокова панель */}
           <div className="space-y-6">
-            {/* Статус системи */}
-            <div className="bg-white rounded-2xl shadow-md p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Статус системи</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Fish Speech TTS</span>
-                  <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-yellow-600'}`}>
-                    <CheckCircle className="w-4 h-4" /> 
-                    {isConnected ? 'Активний' : 'Fallback'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Silero ASR</span>
-                  <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>
-                    <CheckCircle className="w-4 h-4" /> 
-                    {isConnected ? 'Активний' : 'Вимкнено'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Класифікатор</span>
-                  <span className="flex items-center gap-1 text-green-600">
-                    <CheckCircle className="w-4 h-4" /> Активний
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Бекенд</span>
-                  <span className={`flex items-center gap-1 ${isConnected ? 'text-green-600' : 'text-red-500'}`}>
-                    {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-                    {isConnected ? 'Підключено' : 'Офлайн'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Швидка статистика */}
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-md p-6 text-white">
-              <h3 className="font-semibold mb-4">Сьогодні</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-blue-200 text-sm">Оброблено дзвінків</p>
-                  <p className="text-3xl font-bold">{stats.totalCalls}</p>
-                </div>
-                <div>
-                  <p className="text-blue-200 text-sm">Автоматично вирішено</p>
-                  <p className="text-3xl font-bold">{aiResolvedPercent}%</p>
-                </div>
-              </div>
-            </div>
+            <SystemStatus isConnected={isConnected} useFishSpeech={useFishSpeech} />
+            <QuickStats stats={stats} />
 
             {/* Інструкція */}
             <div className={`border rounded-2xl p-6 ${
@@ -2010,23 +1537,6 @@ const App = () => {
           </div>
         </div>
       </div>
-
-      {/* Модальне вікно редагування */}
-      {(showAddModal || editingItem) && (
-        <ReferenceModal
-          type={editingItem?.type || currentRefType}
-          data={editingItem?.data}
-          executors={executors}
-          onClose={() => { setShowAddModal(false); setEditingItem(null); }}
-          onSave={(data) => {
-            if (editingItem) {
-              updateReference(editingItem.type, editingItem.data.id, data);
-            } else {
-              createReference(currentRefType, data);
-            }
-          }}
-        />
-      )}
 
       {/* Футер */}
       <footer className="bg-gray-800 text-gray-400 py-6 mt-12">
